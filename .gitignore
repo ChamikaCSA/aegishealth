@@ -1,0 +1,40 @@
+# IDE & OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Environment
+.env
+.env.*
+!**/.env.example
+
+# Certs
+certs/
+
+# Project data
+/data/
+/results/
+
+# Model checkpoints
+*.pt
+*.pth
+*.h5
+
+# Node / JavaScript
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-store/
+
+# Next.js
+.next/
+out/
+
+# Electron / Vite (desktop)
+**/dist/
+**/.vite/
+
+# Local artifacts
+Thesis.pdf
