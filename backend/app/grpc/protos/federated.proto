@@ -1,0 +1,131 @@
+syntax = "proto3";
+
+package aegishealth;
+
+service FederatedLearning {
+  // Edge agent connects to orchestrator
+  rpc ConnectClient(ConnectRequest) returns (ConnectResponse);
+
+  // Edge agent requests current global model
+  rpc GetGlobalModel(ModelRequest) returns (ModelResponse);
+
+  // Edge agent submits local model update
+  rpc SubmitUpdate(UpdateRequest) returns (UpdateResponse);
+
+  // Edge agent sends heartbeat
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+
+  // Edge agent disconnects when shutting down
+  rpc DisconnectClient(DisconnectRequest) returns (DisconnectResponse);
+
+  // Bidirectional stream for real-time coordination
+  rpc TrainingStream(stream ClientMessage) returns (stream ServerMessage);
+}
+
+message ConnectRequest {
+  int64 client_id = 1;
+  int32 num_samples = 2;
+  string auth_token = 3;
+}
+
+message ConnectResponse {
+  bool accepted = 1;
+  string client_id = 2;
+  string message = 3;
+}
+
+message ModelRequest {
+  string client_id = 1;
+  int64 job_id = 2;
+}
+
+message ModelResponse {
+  int64 job_id = 1;
+  int32 round_number = 2;
+  bytes model_weights = 3;  // Serialized state_dict
+  TrainingConfig config = 4;
+}
+
+message TrainingConfig {
+  int32 local_epochs = 1;
+  float learning_rate = 2;
+  float fedprox_mu = 3;
+  float dp_epsilon = 4;
+  float dp_delta = 5;
+  float dp_max_grad_norm = 6;
+  int32 batch_size = 7;
+  float class_weight_multiplier = 8;
+}
+
+message UpdateRequest {
+  string client_id = 1;
+  int64 job_id = 2;
+  int32 round_number = 3;
+  bytes model_update = 4;  // Serialized update dict
+  UpdateMetrics metrics = 5;
+}
+
+message UpdateMetrics {
+  float local_loss = 1;
+  float local_accuracy = 2;
+  int32 num_samples = 3;
+  float dp_epsilon_spent = 4;
+  float training_time_ms = 5;
+  float f1 = 6;
+  float auc_roc = 7;
+  float cumulative_epsilon = 8;
+  float optimal_threshold = 9;
+  float precision = 10;
+  float recall = 11;
+}
+
+message UpdateResponse {
+  bool accepted = 1;
+  string message = 2;
+}
+
+message HeartbeatRequest {
+  string client_id = 1;
+  int64 timestamp = 2;
+}
+
+message HeartbeatResponse {
+  bool alive = 1;
+  string status = 2;  // "idle", "waiting_for_round", "training"
+  int64 next_round_eta_ms = 3;
+  int64 active_job_id = 4;  // Job to participate in when status is "training"
+}
+
+message DisconnectRequest {
+  string client_id = 1;
+}
+
+message DisconnectResponse {
+  bool acknowledged = 1;
+}
+
+// Streaming messages
+message ClientMessage {
+  oneof payload {
+    ConnectRequest connect = 1;
+    UpdateRequest update = 2;
+    HeartbeatRequest heartbeat = 3;
+  }
+}
+
+message ServerMessage {
+  oneof payload {
+    ConnectResponse connect_ack = 1;
+    ModelResponse model = 2;
+    UpdateResponse update_ack = 3;
+    HeartbeatResponse heartbeat_ack = 4;
+    RoundStart round_start = 5;
+  }
+}
+
+message RoundStart {
+  int64 job_id = 1;
+  int32 round_number = 2;
+  bytes model_weights = 3;
+  TrainingConfig config = 4;
+}
