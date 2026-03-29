@@ -1,21 +1,15 @@
 """
 Differential Privacy Engine for AegisHealth.
 
-Provides per-sample gradient clipping and Gaussian noise injection
-using the Opacus library. Configurable privacy budget (epsilon, delta).
+Production DP for federated clients uses **Opacus** during local SGD (per-sample
+gradient clipping and noise), not post-hoc noise on model updates.
 """
 
 from __future__ import annotations
 
-import logging
-
-import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from opacus import PrivacyEngine
-from opacus.validators import ModuleValidator
-
-logger = logging.getLogger(__name__)
 
 
 class DPEngine:
@@ -41,10 +35,10 @@ class DPEngine:
         data_loader: DataLoader,
         epochs: int = 1,
     ) -> tuple[nn.Module, torch.optim.Optimizer, DataLoader]:
-        """Wrap model/optimizer/dataloader with Opacus DP."""
-        if not ModuleValidator.is_valid(model):
-            model = ModuleValidator.fix(model)
+        """Wrap model/optimizer/dataloader with Opacus DP.
 
+        *model* must already be Opacus-compatible (e.g. from ``create_model()``).
+        """
         privacy_engine = PrivacyEngine()
 
         model, optimizer, data_loader = privacy_engine.make_private_with_epsilon(
@@ -110,65 +104,3 @@ class PrivacyAccountant:
             "num_rounds": self.num_rounds,
             "budget_exhausted": self.budget_exhausted,
         }
-
-
-def clip_and_add_noise(
-    state_dict: dict[str, torch.Tensor],
-    max_norm: float = 1.0,
-    noise_scale: float = 0.1,
-    seed: int | None = None,
-) -> dict[str, torch.Tensor]:
-    """
-    Clip model update norms and add Gaussian noise (model- / tensor-level DP).
-    """
-    if seed is not None:
-        torch.manual_seed(seed)
-
-    noisy_state = {}
-    for key, param in state_dict.items():
-        param_flat = param.float().view(-1)
-        norm = torch.norm(param_flat)
-        clip_factor = min(1.0, max_norm / (norm + 1e-8))
-        clipped = param_flat * clip_factor
-
-        noise = torch.randn_like(clipped) * noise_scale * max_norm
-        noisy_state[key] = (clipped + noise).view(param.shape)
-
-    return noisy_state
-
-
-def compute_model_update(
-    global_state: dict[str, torch.Tensor],
-    local_state: dict[str, torch.Tensor],
-) -> dict[str, torch.Tensor]:
-    """Compute the difference (update) between local and global model."""
-    update = {}
-    for key in global_state:
-        update[key] = local_state[key].float() - global_state[key].float()
-    return update
-
-
-def apply_dp_to_update(
-    update: dict[str, torch.Tensor],
-    epsilon: float = 8.0,
-    delta: float = 1e-5,
-    max_grad_norm: float = 1.0,
-    num_samples: int = 1000,
-) -> tuple[dict[str, torch.Tensor], float]:
-    """
-    Apply DP to a model update using the Gaussian mechanism.
-    Returns noisy update and the actual epsilon spent.
-    """
-    sensitivity = 2 * max_grad_norm / num_samples
-    sigma = sensitivity * (2 * torch.log(torch.tensor(1.25 / delta))).sqrt() / epsilon
-
-    noisy_update = {}
-    for key, val in update.items():
-        flat = val.float().view(-1)
-        norm = torch.norm(flat)
-        clip_factor = min(1.0, max_grad_norm / (norm.item() + 1e-8))
-        clipped = flat * clip_factor
-        noise = torch.randn_like(clipped) * sigma.item()
-        noisy_update[key] = (clipped + noise).view(val.shape)
-
-    return noisy_update, epsilon

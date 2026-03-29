@@ -102,7 +102,8 @@ export function ReleasedModels() {
           Released Models
         </CardTitle>
         <CardDescription>
-          Models from jobs you participated in, released by the server
+          Models from training you joined, available when your coordinator
+          releases them
         </CardDescription>
       </CardHeader>
       <CardContent>

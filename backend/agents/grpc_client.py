@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import ipaddress
 import logging
 
 import grpc
@@ -15,6 +16,28 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.grpc import federated_pb2, federated_pb2_grpc
 
 logger = logging.getLogger(__name__)
+
+
+def _host_from_target(server_address: str) -> str:
+    """Host part of host:port (supports IPv4; IPv6 as [addr]:port)."""
+    if server_address.startswith("["):
+        end = server_address.find("]")
+        if end != -1:
+            return server_address[1:end]
+    if server_address.count(":") == 1:
+        return server_address.split(":", 1)[0]
+    if server_address.count(":") > 1 and not server_address.startswith("["):
+        return server_address.rsplit(":", 1)[0]
+    return server_address.split(":", 1)[0]
+
+
+def _host_is_ip_literal(host: str) -> bool:
+    h = host.split("%", 1)[0]
+    try:
+        ipaddress.ip_address(h)
+        return True
+    except ValueError:
+        return False
 
 
 def serialize_state_dict(state_dict: dict[str, torch.Tensor]) -> bytes:
@@ -35,6 +58,7 @@ class OrchestratorClient:
         self,
         server_address: str = "localhost:50051",
         tls_cert: str | None = None,
+        tls_server_name: str | None = None,
     ):
         from app.core.config import settings
 
@@ -47,7 +71,19 @@ class OrchestratorClient:
             )
         with open(ca_path, "rb") as f:
             creds = grpc.ssl_channel_credentials(f.read())
-        self.channel = grpc.secure_channel(server_address, creds)
+
+        options: tuple[tuple[str, str], ...] = ()
+        if tls_server_name:
+            options = (("grpc.ssl_target_name_override", tls_server_name),)
+        elif _host_is_ip_literal(_host_from_target(server_address)):
+            options = (("grpc.ssl_target_name_override", "localhost"),)
+            logger.info(
+                "TLS: connecting to IP %s — using ssl_target_name_override=localhost "
+                "(orchestrator dev certs are issued for localhost)",
+                server_address,
+            )
+
+        self.channel = grpc.secure_channel(server_address, creds, options=options or None)
 
         self.stub = federated_pb2_grpc.FederatedLearningStub(self.channel)
 

@@ -255,7 +255,7 @@ export function JobDetail({
           <CardHeader>
             <CardTitle>Cumulative Privacy Budget (ε)</CardTitle>
             <CardDescription>
-              Total differential privacy epsilon spent over communication rounds
+              Running total of the privacy budget used as training progresses
             </CardDescription>
           </CardHeader>
           <CardContent className="h-[250px]">

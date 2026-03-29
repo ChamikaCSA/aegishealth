@@ -14,7 +14,7 @@ const agentPath = path.resolve(__dirname, '../../backend/dist/agent');
 const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
-    icon: path.resolve(__dirname, '../web/public/favicon/favicon'),
+    icon: path.resolve(__dirname, '../web/public/logo'),
     extraResource: agentPath,
   },
   rebuildConfig: {},

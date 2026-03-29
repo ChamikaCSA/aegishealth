@@ -15,7 +15,6 @@ from app.ml.trainer import (
     find_optimal_threshold,
     collect_probs,
 )
-from app.ml.dp_engine import compute_model_update, apply_dp_to_update
 from app.data.loader import create_data_loaders
 
 logger = logging.getLogger(__name__)
@@ -85,10 +84,10 @@ class LocalTrainer:
     ) -> tuple[dict[str, torch.Tensor], dict]:
         """
         Execute one federated round of local training.
-        Returns the model update (or noisy update if DP) and metrics.
+        Returns the trained weights (Opacus DP applied during SGD when enabled) and metrics.
         """
         self.model.load_state_dict(global_state)
-        global_flat = torch.cat([v.view(-1) for v in global_state.values()])
+        global_flat = torch.cat([p.data.view(-1) for p in self.model.parameters()])
 
         train_loader, val_loader = create_data_loaders(
             self.X_train, self.y_train,
@@ -105,25 +104,15 @@ class LocalTrainer:
             global_params=global_flat,
             device=self.device,
             class_weight_multiplier=class_weight_multiplier,
+            use_dp=use_dp and dp_epsilon > 0,
+            dp_epsilon=dp_epsilon,
+            dp_delta=dp_delta,
+            dp_max_grad_norm=dp_max_grad_norm,
         )
 
-        local_state = result.state_dict
-
-        if use_dp and dp_epsilon > 0:
-            update = compute_model_update(global_state, local_state)
-            noisy_update, eps_spent = apply_dp_to_update(
-                update=update,
-                epsilon=dp_epsilon,
-                delta=dp_delta,
-                max_grad_norm=dp_max_grad_norm,
-                num_samples=self.num_samples,
-            )
-            final_state = {}
-            for key in global_state:
-                final_state[key] = global_state[key].float() + noisy_update[key]
-        else:
-            final_state = local_state
-            eps_spent = 0.0
+        final_state = result.state_dict
+        eps_spent = result.dp_epsilon_spent
+        self.model.load_state_dict(final_state)
 
         self.cumulative_epsilon += eps_spent
 

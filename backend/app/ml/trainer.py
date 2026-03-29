@@ -1,12 +1,10 @@
 """
 Local training logic for both centralized baseline and federated clients.
-Supports FedProx proximal term and Differential Privacy via Opacus.
+Supports FedProx proximal term and Differential Privacy via Opacus during SGD.
 """
 
 from __future__ import annotations
 
-import copy
-import logging
 import time
 from dataclasses import dataclass
 
@@ -22,10 +20,10 @@ from sklearn.metrics import (
     precision_score,
     recall_score,
 )
+from opacus.grad_sample import GradSampleModule
 
 from app.ml.lstm_model import LSTMAnomalyDetector
-
-logger = logging.getLogger(__name__)
+from app.ml.dp_engine import DPEngine
 
 
 @dataclass
@@ -40,6 +38,7 @@ class TrainResult:
     training_time_ms: float
     state_dict: dict
     optimal_threshold: float = 0.5
+    dp_epsilon_spent: float = 0.0
 
 
 @dataclass
@@ -62,6 +61,17 @@ def get_device() -> torch.device:
     return torch.device("cpu")
 
 
+def _flat_params(model: nn.Module) -> torch.Tensor:
+    return torch.cat([p.data.view(-1) for p in model.parameters()])
+
+
+def _export_train_state_dict(model: nn.Module) -> dict:
+    """Weights for FL aggregation / loading into ``create_model()`` (inner module if wrapped)."""
+    if isinstance(model, GradSampleModule):
+        return {k: v.cpu().clone() for k, v in model._module.state_dict().items()}
+    return {k: v.cpu().clone() for k, v in model.state_dict().items()}
+
+
 def train_local(
     model: LSTMAnomalyDetector,
     train_loader: DataLoader,
@@ -71,10 +81,17 @@ def train_local(
     global_params: torch.Tensor | None = None,
     device: torch.device | None = None,
     class_weight_multiplier: float = 1.0,
+    use_dp: bool = False,
+    dp_epsilon: float = 8.0,
+    dp_delta: float = 1e-5,
+    dp_max_grad_norm: float = 1.0,
 ) -> TrainResult:
     """
     Train model locally. When fedprox_mu > 0 and global_params is provided,
     adds the FedProx proximal term to the loss.
+
+    When use_dp is True and dp_epsilon > 0, wraps training with Opacus
+    (per-sample clipping and noise) before the epoch loop.
 
     class_weight_multiplier scales the inverse-frequency positive-class weight:
     >1.0 biases toward higher recall, <1.0 toward fewer false positives.
@@ -98,6 +115,17 @@ def train_local(
     criterion = nn.CrossEntropyLoss(weight=weight)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
+    dp_engine: DPEngine | None = None
+    if use_dp and dp_epsilon > 0:
+        dp_engine = DPEngine(
+            epsilon=dp_epsilon,
+            delta=dp_delta,
+            max_grad_norm=dp_max_grad_norm,
+        )
+        model, optimizer, train_loader = dp_engine.make_private(
+            model, optimizer, train_loader, epochs=epochs
+        )
+
     start_time = time.time()
     total_loss = 0.0
     n_batches = 0
@@ -114,7 +142,7 @@ def train_local(
 
             if fedprox_mu > 0 and global_params is not None:
                 global_params_dev = global_params.to(device)
-                local_params = model.get_flat_params()
+                local_params = _flat_params(model)
                 proximal_term = (fedprox_mu / 2) * torch.sum(
                     (local_params - global_params_dev) ** 2
                 )
@@ -130,6 +158,11 @@ def train_local(
 
     training_time = (time.time() - start_time) * 1000
 
+    if dp_engine is not None:
+        dp_spent = dp_engine.get_epsilon_spent()
+    else:
+        dp_spent = 0.0
+
     eval_result = evaluate(model, train_loader, device=device)
 
     return TrainResult(
@@ -141,12 +174,13 @@ def train_local(
         recall=eval_result.recall,
         num_samples=total_count,
         training_time_ms=training_time,
-        state_dict={k: v.cpu().clone() for k, v in model.state_dict().items()},
+        state_dict=_export_train_state_dict(model),
+        dp_epsilon_spent=dp_spent,
     )
 
 
 def evaluate(
-    model: LSTMAnomalyDetector,
+    model: nn.Module,
     data_loader: DataLoader,
     device: torch.device | None = None,
     threshold: float = 0.5,
@@ -223,7 +257,7 @@ def find_optimal_threshold(
 
 
 def collect_probs(
-    model: LSTMAnomalyDetector,
+    model: nn.Module,
     data_loader: DataLoader,
     device: torch.device | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:

@@ -111,7 +111,7 @@ export function FleetTable({ fleet, clientNames }: FleetTableProps) {
       <CardHeader>
         <CardTitle>Connected Agents</CardTitle>
         <CardDescription>
-          Edge agents currently connected to the orchestrator
+          Hospital agents that are online and connected for training
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -119,7 +119,7 @@ export function FleetTable({ fleet, clientNames }: FleetTableProps) {
           <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-12">
             <p className="text-sm text-muted-foreground">No clients connected</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Start edge agents to participate in training
+              When a site starts the desktop app and connects, they appear here
             </p>
           </div>
         ) : (

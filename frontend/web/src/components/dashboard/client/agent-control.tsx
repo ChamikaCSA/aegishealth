@@ -227,10 +227,8 @@ export function AgentControl() {
         <CardHeader>
           <CardTitle>Agent</CardTitle>
           <CardDescription>
-            Select your data folder and start the agent to join training. The
-            connection to the orchestrator uses TLS; trust material comes from
-            your deployment (e.g. bundled with the desktop app)—your site does
-            not create certificates.
+            Choose a folder on this computer that contains your prepared data
+            files, then start the agent to join training.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

@@ -140,6 +140,7 @@ def run_federated_simulation(
         round_precisions = []
         round_recalls = []
         round_thresholds = []
+        round_dp_epsilons: list[float] = []
         comm_bytes_down = _model_size_bytes(global_state_dict) * len(trainers)
         comm_bytes_up = 0
 
@@ -187,8 +188,12 @@ def run_federated_simulation(
             round_precisions.append(metrics.get("precision", 0))
             round_recalls.append(metrics.get("recall", 0))
             round_thresholds.append(metrics.get("optimal_threshold", 0.5))
+            round_dp_epsilons.append(float(metrics.get("dp_epsilon_spent", 0.0)))
 
         round_time = (time.time() - round_start) * 1000
+
+        if use_dp and dp_epsilon > 0 and round_dp_epsilons:
+            privacy_accountant.record_round(float(np.mean(round_dp_epsilons)))
 
         avg_loss = np.mean(round_losses)
         avg_acc = np.mean(round_accs)
@@ -197,9 +202,6 @@ def run_federated_simulation(
         avg_precision = np.mean(round_precisions)
         avg_recall = np.mean(round_recalls)
         avg_threshold = np.mean(round_thresholds)
-
-        if use_dp and dp_epsilon > 0:
-            privacy_accountant.record_round(dp_epsilon)
 
         round_info = {
             "round": round_num,

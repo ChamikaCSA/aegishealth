@@ -117,8 +117,9 @@ export function CreateJobDialog({
                 New training job
               </DialogTitle>
               <DialogDescription className="text-sm leading-relaxed">
-                Configure federated training for critical-event prediction. Feature
-                dimension is determined from each client&apos;s prepared data.
+                Configure federated training for critical-event prediction. Input
+                size is inferred automatically from each hospital&apos;s prepared
+                data.
               </DialogDescription>
             </div>
           </DialogHeader>
@@ -153,13 +154,14 @@ export function CreateJobDialog({
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-4">
             <TabsContent value="training" className="mt-0 space-y-4">
               <p className="text-muted-foreground text-sm">
-                Federated rounds, local training depth, and FedProx settings.
+                How many rounds to run, how long each site trains locally, and
+                FedProx options.
               </p>
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field
                   id={field("rounds")}
                   label="Communication rounds"
-                  hint="Count of server–client model aggregation iterations."
+                  hint="How many times the shared model is updated across all sites."
                 >
                   <Input
                     id={field("rounds")}
@@ -181,7 +183,7 @@ export function CreateJobDialog({
                 <Field
                   id={field("epochs")}
                   label="Local epochs"
-                  hint="Local optimizer steps per client, per round."
+                  hint="Training steps on each site, every round."
                 >
                   <Input
                     id={field("epochs")}
@@ -203,7 +205,7 @@ export function CreateJobDialog({
                 <Field
                   id={field("lr")}
                   label="Learning rate"
-                  hint="Local optimizer step size (typical range 1e-4–1e-2)."
+                  hint="Step size for local training (typical range 0.0001–0.01)."
                 >
                   <Input
                     id={field("lr")}
@@ -226,7 +228,7 @@ export function CreateJobDialog({
                 <Field
                   id={field("batch")}
                   label="Batch size"
-                  hint="Minibatch size for each client’s local training run."
+                  hint="Samples per training step on each site."
                 >
                   <Input
                     id={field("batch")}
@@ -248,7 +250,7 @@ export function CreateJobDialog({
                 <Field
                   id={field("mu")}
                   label="FedProx μ (proximal term)"
-                  hint="Proximal term vs. the global model. 0 matches FedAvg (no proximal term)."
+                  hint="How much each site stays close to the shared model. Use 0 for standard averaging."
                 >
                   <Input
                     id={field("mu")}
@@ -299,8 +301,8 @@ export function CreateJobDialog({
 
             <TabsContent value="privacy" className="mt-0 space-y-4">
               <p className="text-muted-foreground text-sm">
-                Differential privacy on model updates; optional CKKS encrypted
-                aggregation.
+                Add privacy noise to shared updates; optionally aggregate updates
+                while they stay encrypted.
               </p>
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field
@@ -329,7 +331,7 @@ export function CreateJobDialog({
                 <Field
                   id={field("delta")}
                   label="DP δ (delta)"
-                  hint="(ε,δ) differential privacy parameter δ; commonly 1e-5."
+                  hint="Privacy parameter δ (often 0.00001)."
                 >
                   <Input
                     id={field("delta")}
@@ -352,7 +354,7 @@ export function CreateJobDialog({
                 <Field
                   id={field("clip")}
                   label="DP max gradient norm"
-                  hint="Gradient norm clipped to this value before noise is added to updates."
+                  hint="Gradients are limited to this size before privacy noise is applied."
                   className="sm:col-span-2"
                 >
                   <Input
@@ -380,8 +382,8 @@ export function CreateJobDialog({
                     Homomorphic encryption
                   </Label>
                   <p className="text-muted-foreground text-xs leading-relaxed">
-                    CKKS aggregation over encrypted client updates. Increases
-                    per-round runtime.
+                    Combine model updates without decrypting them first. Rounds
+                    take longer when this is on.
                   </p>
                 </div>
                 <Switch
@@ -427,7 +429,7 @@ export function CreateJobDialog({
                 <Field
                   id={field("timeout")}
                   label="Round timeout (seconds)"
-                  hint="Wait time for client responses. On expiry: aggregate if enough clients replied; else skip the round."
+                  hint="How long to wait for sites. If time runs out, results merge if enough sites responded; otherwise the round is skipped."
                 >
                   <Input
                     id={field("timeout")}
@@ -453,7 +455,7 @@ export function CreateJobDialog({
                 <Field
                   id={field("quorum")}
                   label="Minimum quorum ratio"
-                  hint="When the round times out, minimum share of expected clients that must have responded to allow aggregation (0.5 = half)."
+                  hint="If a round times out, minimum share of sites that must have responded to still combine updates (0.5 = half)."
                   className="sm:col-span-2"
                 >
                   <Input
@@ -483,8 +485,8 @@ export function CreateJobDialog({
 
             <TabsContent value="model" className="mt-0 space-y-4">
               <p className="text-muted-foreground text-sm">
-                Global LSTM dimensions. Sequence length matches preprocessed
-                client windows.
+                LSTM model size and how many time steps each sample includes. Use
+                the same sequence length as in your data preparation.
               </p>
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field
@@ -544,7 +546,7 @@ export function CreateJobDialog({
                 <Field
                   id={field("seq")}
                   label="Sequence length (timesteps)"
-                  hint="Timesteps per window; must match preprocessing (e.g. 24)."
+                  hint="Time steps per sample; must match your prepared data (often 24)."
                   className="sm:col-span-2"
                 >
                   <Input

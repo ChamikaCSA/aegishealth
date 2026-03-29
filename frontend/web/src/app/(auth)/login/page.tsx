@@ -142,7 +142,8 @@ export default function LoginPage() {
             <CardHeader className="space-y-1 text-center">
               <CardTitle className="text-2xl">Welcome back</CardTitle>
               <CardDescription>
-                Sign in to manage training jobs, view connected sites, and monitor progress
+                Sign in to run training, see which hospitals are participating,
+                and track progress
               </CardDescription>
             </CardHeader>
             <CardContent>

@@ -76,9 +76,17 @@ def create_model(
     num_layers: int = 2,
     dropout: float = 0.3,
 ) -> LSTMAnomalyDetector:
-    return LSTMAnomalyDetector(
+    """Return an Opacus-compatible LSTM (DPLSTM replacement) for DP training.
+
+    All federated global state dicts use this layout; do not pass a raw
+    ``LSTMAnomalyDetector`` to ``DPEngine.make_private`` without this step.
+    """
+    from opacus import PrivacyEngine
+
+    base = LSTMAnomalyDetector(
         input_size=input_size,
         hidden_size=hidden_size,
         num_layers=num_layers,
         dropout=dropout,
     )
+    return PrivacyEngine.get_compatible_module(base)

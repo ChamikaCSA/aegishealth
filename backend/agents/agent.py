@@ -37,6 +37,7 @@ class EdgeAgent:
         server_address: str = "localhost:50051",
         data_dir: str | None = None,
         tls_cert: str | None = None,
+        tls_server_name: str | None = None,
     ):
         self.client_id = client_id
         self.server_address = server_address
@@ -56,7 +57,11 @@ class EdgeAgent:
             input_size=n_features,
         )
 
-        self.grpc_client = OrchestratorClient(server_address, tls_cert=tls_cert)
+        self.grpc_client = OrchestratorClient(
+            server_address,
+            tls_cert=tls_cert,
+            tls_server_name=tls_server_name,
+        )
         self._connected_client_id: str | None = None
 
     def connect(self) -> bool:
@@ -180,6 +185,12 @@ def main():
                         help="Path to raw CSV directory (default: data/raw/client_{id}/)")
     parser.add_argument("--tls-cert", default="certs/ca.crt",
                         help="Path to CA certificate for TLS (default: certs/ca.crt)")
+    parser.add_argument(
+        "--tls-server-name",
+        default=None,
+        metavar="NAME",
+        help="TLS hostname for cert verification (default: localhost when --server uses an IP)",
+    )
     parser.add_argument("--poll-interval", type=float, default=5.0)
     args = parser.parse_args()
 
@@ -188,6 +199,7 @@ def main():
         server_address=args.server,
         data_dir=args.data_dir,
         tls_cert=args.tls_cert,
+        tls_server_name=args.tls_server_name,
     )
     agent.run_daemon(poll_interval=args.poll_interval)
 
