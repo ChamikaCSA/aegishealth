@@ -27,6 +27,8 @@ interface AuditLog {
 }
 
 function getOrchestratorAddr(): string {
+  const explicit = process.env.NEXT_PUBLIC_ORCHESTRATOR_ADDR?.trim();
+  if (explicit) return explicit;
   const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api";
   try {
     const url = new URL(apiUrl);
