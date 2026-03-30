@@ -19,3 +19,5 @@ eval_type_backport
 onnxscript
 tenseal
 pytest
+ipykernel
+matplotlib

@@ -86,6 +86,16 @@ class LocalTrainer:
         Execute one federated round of local training.
         Returns the trained weights (Opacus DP applied during SGD when enabled) and metrics.
         """
+
+        dp_active = use_dp and dp_epsilon > 0
+        if dp_active:
+            self.model = create_model(
+                self.input_size,
+                self.hidden_size,
+                self.num_layers,
+                self.dropout,
+            )
+
         self.model.load_state_dict(global_state)
         global_flat = torch.cat([p.data.view(-1) for p in self.model.parameters()])
 
@@ -104,7 +114,7 @@ class LocalTrainer:
             global_params=global_flat,
             device=self.device,
             class_weight_multiplier=class_weight_multiplier,
-            use_dp=use_dp and dp_epsilon > 0,
+            use_dp=dp_active,
             dp_epsilon=dp_epsilon,
             dp_delta=dp_delta,
             dp_max_grad_norm=dp_max_grad_norm,
@@ -112,6 +122,14 @@ class LocalTrainer:
 
         final_state = result.state_dict
         eps_spent = result.dp_epsilon_spent
+
+        if dp_active:
+            self.model = create_model(
+                self.input_size,
+                self.hidden_size,
+                self.num_layers,
+                self.dropout,
+            )
         self.model.load_state_dict(final_state)
 
         self.cumulative_epsilon += eps_spent
