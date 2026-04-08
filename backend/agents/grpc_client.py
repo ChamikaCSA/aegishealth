@@ -72,18 +72,24 @@ class OrchestratorClient:
         with open(ca_path, "rb") as f:
             creds = grpc.ssl_channel_credentials(f.read())
 
-        options: tuple[tuple[str, str], ...] = ()
+        options_list = [
+            ("grpc.max_send_message_length", 100 * 1024 * 1024),
+            ("grpc.max_receive_message_length", 100 * 1024 * 1024),
+        ]
         if tls_server_name:
-            options = (("grpc.ssl_target_name_override", tls_server_name),)
+            options_list.append(("grpc.ssl_target_name_override", tls_server_name))
         elif _host_is_ip_literal(_host_from_target(server_address)):
-            options = (("grpc.ssl_target_name_override", "localhost"),)
+            options_list.append(("grpc.ssl_target_name_override", "localhost"))
             logger.info(
                 "TLS: connecting to IP %s — using ssl_target_name_override=localhost "
                 "(orchestrator dev certs are issued for localhost)",
                 server_address,
             )
 
-        self.channel = grpc.secure_channel(server_address, creds, options=options or None)
+        from app.grpc.interceptors import PayloadLoggingClientInterceptor
+
+        raw_channel = grpc.secure_channel(server_address, creds, options=tuple(options_list))
+        self.channel = grpc.intercept_channel(raw_channel, PayloadLoggingClientInterceptor())
 
         self.stub = federated_pb2_grpc.FederatedLearningStub(self.channel)
 

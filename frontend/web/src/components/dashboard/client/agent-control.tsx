@@ -61,11 +61,13 @@ export function AgentControl() {
           message?: string;
         };
         if (parsed.ts && parsed.type) {
+          const type = parsed.type.toLowerCase();
+          const cleanType = type === "agent_stdout" ? "log" : type === "agent_stderr" ? "error" : type;
           const msg = parsed.message
-            ? `[${parsed.type}] ${parsed.message}`
-            : `[${parsed.type}]`;
+            ? `[${cleanType}] ${parsed.message}`
+            : `[${cleanType}]`;
           entry = { ts: parsed.ts, line: msg };
-          if (parsed.type === "agent_exit" || parsed.type === "agent_error") {
+          if (type === "agent_exit" || type === "agent_error") {
             setIsStarting(false);
           }
         } else {
@@ -122,28 +124,45 @@ export function AgentControl() {
 
   useEffect(() => {
     fetchCompliance();
-    const interval = setInterval(fetchCompliance, 5000);
-    return () => clearInterval(interval);
-  }, [fetchCompliance]);
+  }, [fetchCompliance, localProcessRunning]);
 
   useEffect(() => {
     const channel = supabase
-      .channel("audit_and_fleet")
+      .channel("audit_and_fleet_patching")
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "audit_logs" },
-        fetchCompliance
+        (payload) => {
+          const newEntry = payload.new as AuditLog;
+          if (newEntry.client_id === user?.client_id || newEntry.client_id === null) {
+            setAuditLogs((prev) => {
+               if (prev.find(l => l.created_at === newEntry.created_at && l.event_type === newEntry.event_type)) return prev;
+               return [newEntry, ...prev].slice(0, 100);
+            });
+          }
+        }
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "client_registry" },
-        fetchCompliance
+        (payload) => {
+          if (payload.eventType === "UPDATE" || payload.eventType === "INSERT") {
+            const updatedClient = payload.new as { client_id: number; status: string };
+            if (updatedClient.client_id === user?.client_id) {
+              setAgentStatus(updatedClient.status);
+            }
+          } else if (payload.eventType === "DELETE") {
+            if ((payload.old as { client_id: number }).client_id === user?.client_id) {
+              setAgentStatus("disconnected");
+            }
+          }
+        }
       )
       .subscribe();
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [fetchCompliance]);
+  }, [user?.client_id]);
 
   useEffect(() => {
     if (["training", "idle", "connected"].includes(agentStatus)) {
@@ -157,9 +176,7 @@ export function AgentControl() {
     }
   }, [agentStatus, localProcessRunning]);
 
-  useEffect(() => {
-    if (!localProcessRunning) fetchCompliance();
-  }, [localProcessRunning, fetchCompliance]);
+
 
   const handlePickDir = async () => {
     const api = window.electronAPI;
@@ -289,16 +306,36 @@ export function AgentControl() {
             </TabsList>
             <TabsContent value="agent-logs">
               <LogViewer
-                events={logs.map((entry) => {
-                  const match = entry.line.match(/^\[([^\]]+)\]\s*(.*)$/);
-                  const type = match ? match[1] : "log";
-                  const message = match ? match[2].trim() : entry.line;
-                  return {
-                    ts: entry.ts,
-                    type,
-                    message: message || undefined,
-                  } satisfies LogEvent;
-                })}
+                events={[...logs]
+                  .reverse()
+                  .filter((entry) => {
+                    const msgWithoutPrefix = entry.line.replace(/^\[[^\]]+\]\s*/, "");
+                    const isNoisy =
+                      msgWithoutPrefix.includes("Secure RNG turned off") ||
+                      msgWithoutPrefix.includes("Optimal order is the largest alpha") ||
+                      msgWithoutPrefix.includes("Full backward hook is firing") ||
+                      msgWithoutPrefix.includes("does not fit in a single ciphertext") ||
+                      msgWithoutPrefix.includes("operations are disabled in this setup") ||
+                      msgWithoutPrefix.includes("increasing the poly_modulus parameter") ||
+                      msgWithoutPrefix.includes("recvmsg encountered uncommon error: Message too long") ||
+                      msgWithoutPrefix.includes("InitializeLog() is called") ||
+                      msgWithoutPrefix.includes("DPLSTMCell") ||
+                      msgWithoutPrefix.includes("RNNLinear") ||
+                      msgWithoutPrefix.includes("DPLSTM") ||
+                      /^\s*[)]\s*$/.test(msgWithoutPrefix) ||
+                      /^\s*[(].*[)]\s*$/.test(msgWithoutPrefix);
+                    return !isNoisy;
+                  })
+                  .map((entry) => {
+                    const match = entry.line.match(/^\[([^\]]+)\]\s*(.*)$/);
+                    const type = match ? match[1] : "log";
+                    const message = match ? match[2].trim() : entry.line;
+                    return {
+                      ts: entry.ts,
+                      type,
+                      message: message || undefined,
+                    } satisfies LogEvent;
+                  })}
                 emptyMessage="No logs yet. Start the agent to see output."
               />
             </TabsContent>

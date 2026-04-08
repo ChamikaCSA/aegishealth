@@ -102,7 +102,16 @@ async def serve_grpc(
     with open(cert_path, "rb") as f:
         certificate = f.read()
 
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+    from app.grpc.interceptors import PayloadLoggingServerInterceptor
+
+    server = grpc.server(
+        futures.ThreadPoolExecutor(max_workers=10),
+        interceptors=(PayloadLoggingServerInterceptor(),),
+        options=[
+            ("grpc.max_send_message_length", 100 * 1024 * 1024),
+            ("grpc.max_receive_message_length", 100 * 1024 * 1024),
+        ]
+    )
     servicer = FederatedLearningServicer(orchestrator)
     federated_pb2_grpc.add_FederatedLearningServicer_to_server(servicer, server)
 

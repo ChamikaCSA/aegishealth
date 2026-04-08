@@ -34,7 +34,7 @@ import type { AuditLogRow } from "@/hooks/useAuditLogs";
 import type { FleetClient } from "@/hooks/useFleet";
 import type { ClientRow } from "@/hooks/useClients";
 import type { LogEvent } from "@/types/logging";
-import { Download, ChevronDown, Send } from "lucide-react";
+import { Download, ChevronDown, Send, Cpu, Shield, Network, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 interface JobDetailProps {
@@ -48,8 +48,8 @@ interface JobDetailProps {
   onDownloadModel: (job: Job, kind: "pt" | "onnx") => void;
   onReleaseModel?: (job: Job) => void;
   startingJobId: number | null;
+  stoppingJobId?: number | null;
   releasingJobId?: number | null;
-  token: string | null;
 }
 
 export function JobDetail({
@@ -63,6 +63,7 @@ export function JobDetail({
   onDownloadModel,
   onReleaseModel,
   startingJobId,
+  stoppingJobId = null,
   releasingJobId = null,
 }: JobDetailProps) {
   const metrics = rounds.map((r) => ({
@@ -75,6 +76,8 @@ export function JobDetail({
     aggregation_time_ms: r.aggregation_time_ms,
     cumulative_epsilon: r.cumulative_epsilon,
   }));
+
+  const jobConfig = job.config as any;
 
   const hasEpsilon = metrics.some(
     (m) => m.cumulative_epsilon != null && m.cumulative_epsilon > 0,
@@ -156,13 +159,138 @@ export function JobDetail({
                 </Button>
               )}
               {job.status === "running" && (
-                <Button variant="destructive" onClick={onStopJob}>
-                  Stop Training
+                <Button
+                  variant="destructive"
+                  onClick={onStopJob}
+                  disabled={stoppingJobId === job.id}
+                >
+                  {stoppingJobId === job.id ? "Stopping..." : "Stop Training"}
                 </Button>
               )}
             </div>
           </div>
         </CardHeader>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Configuration Summary</CardTitle>
+          <CardDescription>
+            Parameters used for this federated training job
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-6 text-sm sm:grid-cols-2 lg:grid-cols-4">
+            <div className="space-y-3">
+              <h4 className="font-medium text-primary flex items-center gap-2">
+                <Cpu className="size-4" aria-hidden />
+                Training
+              </h4>
+              <ul className="space-y-2 text-muted-foreground">
+                <li className="grid grid-cols-2 gap-4 border-b pb-1">
+                  <div className="flex justify-between">
+                    <span>Rounds</span>
+                    <span className="font-medium text-foreground">{jobConfig.num_rounds ?? "—"}</span>
+                  </div>
+                  <div className="flex justify-between border-l pl-4">
+                    <span>Epochs</span>
+                    <span className="font-medium text-foreground">{jobConfig.local_epochs ?? "—"}</span>
+                  </div>
+                </li>
+                <li className="grid grid-cols-2 gap-4 border-b pb-1">
+                  <div className="flex justify-between">
+                    <span>Learning Rate</span>
+                    <span className="font-medium text-foreground">{jobConfig.learning_rate ?? "—"}</span>
+                  </div>
+                  <div className="flex justify-between border-l pl-4">
+                    <span>Batch Size</span>
+                    <span className="font-medium text-foreground">{jobConfig.batch_size ?? "—"}</span>
+                  </div>
+                </li>
+                <li className="grid grid-cols-2 gap-4 border-b pb-1">
+                  <div className="flex justify-between">
+                    <span>Proximal μ</span>
+                    <span className="font-medium text-foreground">{jobConfig.fedprox_mu ?? "—"}</span>
+                  </div>
+                  <div className="flex justify-between border-l pl-4">
+                    <span>Weight</span>
+                    <span className="font-medium text-foreground">{jobConfig.class_weight_multiplier ?? "—"}x</span>
+                  </div>
+                </li>
+              </ul>
+            </div>
+
+            <div className="space-y-3">
+              <h4 className="font-medium text-primary flex items-center gap-2">
+                <Shield className="size-4" aria-hidden />
+                Privacy
+              </h4>
+              <ul className="space-y-2 text-muted-foreground">
+                <li className="grid grid-cols-2 gap-4 border-b pb-1">
+                  <div className="flex justify-between">
+                    <span>Epsilon</span>
+                    <span className="font-medium text-foreground">{jobConfig.dp_epsilon ?? "—"}</span>
+                  </div>
+                  <div className="flex justify-between border-l pl-4">
+                    <span>Delta</span>
+                    <span className="font-medium text-foreground">{jobConfig.dp_delta ?? "—"}</span>
+                  </div>
+                </li>
+                <li className="flex justify-between border-b pb-1">
+                  <span>Max Grad Norm</span>
+                  <span className="font-medium text-foreground">{jobConfig.dp_max_grad_norm ?? "—"}</span>
+                </li>
+                <li className="flex justify-between border-b pb-1">
+                  <span>Aggregation</span>
+                  <span className="font-medium text-foreground truncate ml-2">
+                    {jobConfig.use_he ? "Homomorphic" : "Standard"}
+                  </span>
+                </li>
+              </ul>
+            </div>
+
+            <div className="space-y-3">
+              <h4 className="font-medium text-primary flex items-center gap-2">
+                <Network className="size-4" aria-hidden />
+                Orchestration
+              </h4>
+              <ul className="space-y-2 text-muted-foreground">
+                <li className="flex justify-between border-b pb-1">
+                  <span>Min Clients</span>
+                  <span className="font-medium text-foreground">{jobConfig.min_clients_per_round ?? "—"}</span>
+                </li>
+                <li className="flex justify-between border-b pb-1">
+                  <span>Timeout</span>
+                  <span className="font-medium text-foreground">{jobConfig.round_timeout_seconds ?? "—"}s</span>
+                </li>
+                <li className="flex justify-between border-b pb-1">
+                  <span>Quorum Ratio</span>
+                  <span className="font-medium text-foreground">{(Number(jobConfig.min_quorum_ratio ?? 0) * 100).toFixed(0)}%</span>
+                </li>
+              </ul>
+            </div>
+
+            <div className="space-y-3">
+              <h4 className="font-medium text-primary flex items-center gap-2">
+                <Sparkles className="size-4" aria-hidden />
+                Architecture
+              </h4>
+              <ul className="space-y-2 text-muted-foreground">
+                <li className="flex justify-between border-b pb-1">
+                  <span>Hidden Size</span>
+                  <span className="font-medium text-foreground">{jobConfig.lstm_hidden_size ?? "—"}</span>
+                </li>
+                <li className="flex justify-between border-b pb-1">
+                  <span>LSTM Layers</span>
+                  <span className="font-medium text-foreground">{jobConfig.lstm_num_layers ?? "—"}</span>
+                </li>
+                <li className="flex justify-between border-b pb-1">
+                  <span>Seq. Length</span>
+                  <span className="font-medium text-foreground">{jobConfig.sequence_length ?? "—"}</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </CardContent>
       </Card>
 
       <div className="grid gap-4 md:grid-cols-2">

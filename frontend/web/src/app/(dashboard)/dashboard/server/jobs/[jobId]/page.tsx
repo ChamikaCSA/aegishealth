@@ -31,24 +31,20 @@ export default function JobDetailPage() {
   const { fleet } = useFleet();
   const { clients } = useClients();
 
-  const [token, setToken] = useState<string | null>(null);
   const [startingJobId, setStartingJobId] = useState<number | null>(null);
+  const [stoppingJobId, setStoppingJobId] = useState<number | null>(null);
   const [releasingJobId, setReleasingJobId] = useState<number | null>(null);
 
   const job = jobId != null ? jobs.find((j) => j.id === jobId) : undefined;
 
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setToken(session?.access_token ?? null);
-    });
-  }, []);
 
   const handleStartJob = useCallback(
     async (id: number) => {
       setStartingJobId(id);
       try {
-        await api.startJob(id, token);
-        await fetchJobs();
+        const { data: { session } } = await supabase.auth.getSession();
+        const t = session?.access_token ?? null;
+        await api.startJob(id, t);
         toast.success("Job started");
       } catch (err) {
         console.error(err);
@@ -57,27 +53,32 @@ export default function JobDetailPage() {
         setStartingJobId(null);
       }
     },
-    [token, fetchJobs]
+    [fetchJobs]
   );
 
   const handleStopJob = useCallback(async () => {
     if (!job || job.status !== "running") return;
+    setStoppingJobId(job.id);
     try {
-      await api.stopJob(job.id, token);
-      await fetchJobs();
+      const { data: { session } } = await supabase.auth.getSession();
+      const t = session?.access_token ?? null;
+      await api.stopJob(job.id, t);
       toast.success("Job stopped");
     } catch (err) {
       console.error(err);
       toast.error(err instanceof Error ? err.message : "Failed to stop job");
+    } finally {
+      setStoppingJobId(null);
     }
-  }, [job, token, fetchJobs]);
+  }, [job, fetchJobs]);
 
   const handleReleaseModel = useCallback(
     async (j: Job) => {
       setReleasingJobId(j.id);
       try {
-        await api.releaseModel(j.id, token);
-        await fetchJobs();
+        const { data: { session } } = await supabase.auth.getSession();
+        const t = session?.access_token ?? null;
+        await api.releaseModel(j.id, t);
         toast.success("Model released for participating clients");
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Failed to release model");
@@ -85,13 +86,15 @@ export default function JobDetailPage() {
         setReleasingJobId(null);
       }
     },
-    [token, fetchJobs]
+    [fetchJobs]
   );
 
   const handleDownloadModel = useCallback(
     async (j: Job, kind: "pt" | "onnx") => {
       try {
-        const { url } = await api.getModelDownloadUrl(j.id, kind, token);
+        const { data: { session } } = await supabase.auth.getSession();
+        const t = session?.access_token ?? null;
+        const { url } = await api.getModelDownloadUrl(j.id, kind, t);
         const a = document.createElement("a");
         a.href = url;
         a.download =
@@ -105,7 +108,7 @@ export default function JobDetailPage() {
         toast.error(err instanceof Error ? err.message : "Failed to download model");
       }
     },
-    [token]
+    []
   );
 
   if (jobId === null) {
@@ -160,7 +163,7 @@ export default function JobDetailPage() {
         onReleaseModel={handleReleaseModel}
         startingJobId={startingJobId}
         releasingJobId={releasingJobId}
-        token={token}
+        stoppingJobId={stoppingJobId}
       />
     </div>
   );

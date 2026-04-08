@@ -20,11 +20,9 @@ from agents.grpc_client import OrchestratorClient
 from agents.local_trainer import LocalTrainer
 from app.data.preprocessor import preprocess_client_data
 from app.core.config import settings
+from app.core.logging import setup_logging
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="[%(levelname)s] %(name)s: %(message)s",
-)
+setup_logging(level="INFO")
 logger = logging.getLogger("agents")
 
 
@@ -76,21 +74,24 @@ class EdgeAgent:
             logger.error("Connection rejected")
         return accepted
 
-    def participate_in_round(self, job_id: int) -> bool:
-        """Fetch global model, train locally, submit update."""
+    def participate_in_round(self, job_id: int, model_data: tuple | None = None) -> bool:
+        """Fetch global model (if not provided), train locally, submit update."""
         if not self._connected_client_id:
             logger.error("Not connected")
             return False
 
-        try:
-            global_state, round_num, config, he_context_bytes = self.grpc_client.get_global_model(
-                self._connected_client_id, job_id
-            )
-        except Exception as e:
-            logger.error("Failed to get global model: %s", e)
-            return False
+        if model_data:
+            global_state, round_num, config, he_context_bytes = model_data
+        else:
+            try:
+                global_state, round_num, config, he_context_bytes = self.grpc_client.get_global_model(
+                    self._connected_client_id, job_id
+                )
+            except Exception as e:
+                logger.error("Failed to get global model: %s", e)
+                return False
 
-        logger.info("Training round %d (epochs=%d, mu=%.3f, eps=%.1f)...",
+        logger.info("Starting training: Round %d | Epochs: %d | Mu: %.3f | Eps: %.1f",
                      round_num, config["local_epochs"], config["fedprox_mu"],
                      config["dp_epsilon"])
 
@@ -134,7 +135,7 @@ class EdgeAgent:
             is_encrypted=is_encrypted,
         )
 
-        logger.info("Update %s: %s", "accepted" if accepted else "rejected", msg)
+        logger.info("Round %d update %s (Server: %s)", round_num, "accepted" if accepted else "rejected", msg)
         return accepted
 
     def _shutdown(self):
@@ -171,15 +172,19 @@ class EdgeAgent:
                 status, job_id = self.grpc_client.heartbeat(self._connected_client_id)
                 if status == "training" and job_id > 0:
                     try:
-                        global_state, round_num, config, _ = self.grpc_client.get_global_model(
+                        result = self.grpc_client.get_global_model(
                             self._connected_client_id, job_id
                         )
+                        _, round_num, _, _ = result
+                        
                         prev = last_round.get(job_id, 0)
                         if round_num > prev:
-                            self.participate_in_round(job_id)
+                            self.participate_in_round(job_id, model_data=result)
                             last_round[job_id] = round_num
-                    except Exception:
-                        pass
+                        else:
+                            logger.debug("Waiting for next round (Current: %d)", round_num)
+                    except Exception as e:
+                        logger.debug("Polling update: %s", str(e))
                 time.sleep(poll_interval)
             except KeyboardInterrupt:
                 logger.info("Shutting down agent...")

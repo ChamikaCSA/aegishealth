@@ -32,7 +32,7 @@ const dateFormatter = new Intl.DateTimeFormat(undefined, {
 function formatCreated(iso?: string): string {
   if (!iso) return "—";
   try {
-    return dateFormatter.format(new Date(iso));
+    return dateFormatter.format(new Date(new Date(iso).getTime() - 86400000));
   } catch {
     return "—";
   }

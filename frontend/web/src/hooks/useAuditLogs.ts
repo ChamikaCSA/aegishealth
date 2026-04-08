@@ -31,13 +31,26 @@ export function useAuditLogs(jobId: number | null) {
 
   useEffect(() => {
     const channel = supabase
-      .channel("audit_logs")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "audit_logs" }, fetchAuditLogs)
+      .channel("audit_logs_realtime")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "audit_logs" },
+        (payload) => {
+          const newLog = payload.new as AuditLogRow;
+          if (jobId && newLog.job_id !== jobId) return;
+
+          setAuditLogs((prev) => {
+            if (prev.find((l) => l.created_at === newLog.created_at && l.event_type === newLog.event_type)) return prev;
+            return [newLog, ...prev].slice(0, 100);
+          });
+        }
+      )
       .subscribe();
+
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [fetchAuditLogs]);
+  }, [jobId]);
 
   return { auditLogs };
 }

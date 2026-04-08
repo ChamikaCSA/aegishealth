@@ -29,7 +29,6 @@ export default function ServerDashboard() {
   const [config, setConfig] = useState<JobConfig>(defaultConfig);
   const [creating, setCreating] = useState(false);
   const [createJobDialogOpen, setCreateJobDialogOpen] = useState(false);
-  const [token, setToken] = useState<string | null>(null);
 
   const { jobs, fetchJobs } = useJobs();
   const { fleet } = useFleet();
@@ -43,11 +42,6 @@ export default function ServerDashboard() {
     return m;
   }, [clients]);
 
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setToken(session?.access_token ?? null);
-    });
-  }, []);
 
   const handleCreateJob = useCallback(async () => {
     if (!user) return;
@@ -67,7 +61,6 @@ export default function ServerDashboard() {
       if (error) throw error;
       if (job) {
         setCreateJobDialogOpen(false);
-        await fetchJobs();
         toast.success("Job created successfully");
         router.push(`/dashboard/server/jobs/${job.id}`);
       }
@@ -86,9 +79,11 @@ export default function ServerDashboard() {
       email: string;
       password: string;
     }) => {
-      await api.registerClient(data, token);
+      const { data: { session } } = await supabase.auth.getSession();
+      const t = session?.access_token ?? null;
+      await api.registerClient(data, t);
     },
-    [token]
+    []
   );
 
   return (

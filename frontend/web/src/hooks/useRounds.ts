@@ -34,13 +34,38 @@ export function useRounds(jobId: number | null) {
   useEffect(() => {
     if (!jobId) return;
     const channel = supabase
-      .channel(`rounds_${jobId}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "training_rounds" }, () => fetchRounds(jobId))
+      .channel(`rounds_${jobId}_realtime`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "training_rounds" },
+        (payload) => {
+          const newRound = payload.new as (RoundMetric & { job_id: number });
+          if (newRound.job_id !== jobId) return;
+
+          if (payload.eventType === "INSERT") {
+            setRounds((prev) => {
+              if (prev.find((r) => r.round_number === newRound.round_number)) return prev;
+              return [...prev, newRound].sort((a, b) => a.round_number - b.round_number);
+            });
+          } else if (payload.eventType === "UPDATE") {
+            setRounds((prev) =>
+              prev.map((r) =>
+                r.round_number === newRound.round_number ? newRound : r
+              )
+            );
+          } else if (payload.eventType === "DELETE") {
+            setRounds((prev) =>
+              prev.filter((r) => r.round_number !== (payload.old as { round_number: number }).round_number)
+            );
+          }
+        }
+      )
       .subscribe();
+
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [jobId, fetchRounds]);
+  }, [jobId]);
 
   return { rounds };
 }

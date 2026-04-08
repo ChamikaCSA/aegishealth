@@ -86,19 +86,24 @@ export function startAgent(
 
   agentProcess = spawn(pythonCmd, args, {
     cwd,
-    env: { ...process.env },
+    env: { ...process.env, PYTHONUNBUFFERED: '1' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   notifyState();
+
+  const parseAndEmit = (line: string, defaultType: string) => {
+    const levelMatch = line.match(/\[(INFO|WARNING|ERROR|DEBUG|CRITICAL)\]/i) || 
+                       line.match(/^(INFO|WARNING|ERROR|DEBUG|CRITICAL):/i);
+    const type = levelMatch ? levelMatch[1].toLowerCase() : defaultType;
+    emit({ ts: new Date().toISOString(), type, message: line });
+  };
 
   agentProcess.stdout?.on('data', (data: Buffer) => {
     data
       .toString()
       .split('\n')
       .filter((l) => l.trim())
-      .forEach((line) =>
-        emit({ ts: new Date().toISOString(), type: 'agent_stdout', message: line })
-      );
+      .forEach((line) => parseAndEmit(line, 'agent_stdout'));
   });
 
   agentProcess.stderr?.on('data', (data: Buffer) => {
@@ -106,9 +111,7 @@ export function startAgent(
       .toString()
       .split('\n')
       .filter((l) => l.trim())
-      .forEach((line) =>
-        emit({ ts: new Date().toISOString(), type: 'agent_stderr', message: line })
-      );
+      .forEach((line) => parseAndEmit(line, 'agent_stderr'));
   });
 
   agentProcess.on('close', (code, signal) => {

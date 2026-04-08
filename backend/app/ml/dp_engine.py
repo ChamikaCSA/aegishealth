@@ -9,7 +9,13 @@ from __future__ import annotations
 
 import torch.nn as nn
 from torch.utils.data import DataLoader
+import logging
+import warnings
 from opacus import PrivacyEngine
+
+warnings.filterwarnings("ignore", message="Secure RNG turned off")
+warnings.filterwarnings("ignore", message="Optimal order is the largest alpha")
+warnings.filterwarnings("ignore", message="Full backward hook is firing")
 
 
 class DPEngine:

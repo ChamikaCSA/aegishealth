@@ -26,19 +26,50 @@ export function useFleet() {
 
   useEffect(() => {
     fetchFleet();
-    const interval = setInterval(fetchFleet, 5000);
-    return () => clearInterval(interval);
   }, [fetchFleet]);
 
   useEffect(() => {
     const channel = supabase
-      .channel("client_registry")
-      .on("postgres_changes", { event: "*", schema: "public", table: "client_registry" }, fetchFleet)
+      .channel("client_registry_realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "client_registry" },
+        (payload) => {
+          if (payload.eventType === "INSERT") {
+            const newItem: FleetClient = {
+              client_id: payload.new.client_id,
+              num_samples: payload.new.num_samples ?? 0,
+              status: payload.new.status ?? "idle",
+            };
+            setFleet((prev) => {
+              if (prev.find((c) => c.client_id === newItem.client_id)) return prev;
+              return [...prev, newItem].sort((a, b) => a.client_id - b.client_id);
+            });
+          } else if (payload.eventType === "UPDATE") {
+            setFleet((prev) =>
+              prev.map((c) =>
+                c.client_id === payload.new.client_id
+                  ? {
+                      ...c,
+                      status: payload.new.status ?? c.status,
+                      num_samples: payload.new.num_samples ?? c.num_samples,
+                    }
+                  : c
+              )
+            );
+          } else if (payload.eventType === "DELETE") {
+            setFleet((prev) =>
+              prev.filter((c) => c.client_id === payload.old.client_id)
+            );
+          }
+        }
+      )
       .subscribe();
+
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [fetchFleet]);
+  }, []);
 
   return { fleet };
 }

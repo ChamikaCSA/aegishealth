@@ -33,23 +33,19 @@ interface ReleasedJob {
 export function ReleasedModels() {
   const { user } = useAuth();
   const [jobs, setJobs] = useState<ReleasedJob[]>([]);
-  const [token, setToken] = useState<string | null>(null);
 
   const fetchReleased = useCallback(async () => {
-    if (!token) return;
+    const { data: { session } } = await supabase.auth.getSession();
+    const t = session?.access_token ?? null;
+    if (!t) return;
     try {
-      const data = await api.getReleasedModels(token);
+      const data = await api.getReleasedModels(t);
       setJobs(data);
     } catch {
       setJobs([]);
     }
-  }, [token]);
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setToken(session?.access_token ?? null);
-    });
   }, []);
+
 
   useEffect(() => {
     fetchReleased();
@@ -77,7 +73,9 @@ export function ReleasedModels() {
 
   const handleDownload = async (jobId: number, kind: "pt" | "onnx") => {
     try {
-      const { url } = await api.getModelDownloadUrl(jobId, kind, token);
+      const { data: { session } } = await supabase.auth.getSession();
+      const t = session?.access_token ?? null;
+      const { url } = await api.getModelDownloadUrl(jobId, kind, t);
       const a = document.createElement("a");
       a.href = url;
       a.download =

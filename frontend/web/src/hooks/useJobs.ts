@@ -57,13 +57,53 @@ export function useJobs() {
 
   useEffect(() => {
     const channel = supabase
-      .channel("training_jobs")
-      .on("postgres_changes", { event: "*", schema: "public", table: "training_jobs" }, fetchJobs)
+      .channel("training_jobs_realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "training_jobs" },
+        (payload) => {
+          if (payload.eventType === "INSERT") {
+            const newJob: Job = {
+              id: payload.new.id,
+              status: payload.new.status,
+              config: (payload.new.config as Record<string, unknown>) ?? {},
+              current_round: payload.new.current_round ?? 0,
+              total_rounds: payload.new.total_rounds ?? 50,
+              best_accuracy: payload.new.best_accuracy ?? 0,
+              best_f1_score: payload.new.best_f1_score ?? 0,
+              best_auc_roc: payload.new.best_auc_roc ?? 0,
+              created_at: payload.new.created_at,
+            };
+            setJobs((prev) => [newJob, ...prev]);
+          } else if (payload.eventType === "UPDATE") {
+            setJobs((prev) =>
+              prev.map((j) =>
+                j.id === payload.new.id
+                  ? {
+                      ...j,
+                      status: payload.new.status ?? j.status,
+                      current_round: payload.new.current_round ?? j.current_round,
+                      best_accuracy: payload.new.best_accuracy ?? j.best_accuracy,
+                      best_f1_score: payload.new.best_f1_score ?? j.best_f1_score,
+                      best_auc_roc: payload.new.best_auc_roc ?? j.best_auc_roc,
+                      model_path_pt: payload.new.model_path_pt ?? j.model_path_pt,
+                      model_path_onnx: payload.new.model_path_onnx ?? j.model_path_onnx,
+                      model_released_at: payload.new.model_released_at ?? j.model_released_at,
+                    }
+                  : j
+              )
+            );
+          } else if (payload.eventType === "DELETE") {
+            setJobs((prev) => prev.filter((j) => j.id === payload.old.id));
+          }
+        }
+      )
       .subscribe();
+
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [fetchJobs]);
+  }, []);
 
   return { jobs, fetchJobs, initialLoadComplete };
 }
