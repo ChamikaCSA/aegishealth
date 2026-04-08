@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0f\x66\x65\x64\x65rated.proto\x12\x0b\x61\x65gishealth\"L\n\x0e\x43onnectRequest\x12\x11\n\tclient_id\x18\x01 \x01(\x03\x12\x13\n\x0bnum_samples\x18\x02 \x01(\x05\x12\x12\n\nauth_token\x18\x03 \x01(\t\"G\n\x0f\x43onnectResponse\x12\x10\n\x08\x61\x63\x63\x65pted\x18\x01 \x01(\x08\x12\x11\n\tclient_id\x18\x02 \x01(\t\x12\x0f\n\x07message\x18\x03 \x01(\t\"1\n\x0cModelRequest\x12\x11\n\tclient_id\x18\x01 \x01(\t\x12\x0e\n\x06job_id\x18\x02 \x01(\x03\"y\n\rModelResponse\x12\x0e\n\x06job_id\x18\x01 \x01(\x03\x12\x14\n\x0cround_number\x18\x02 \x01(\x05\x12\x15\n\rmodel_weights\x18\x03 \x01(\x0c\x12+\n\x06\x63onfig\x18\x04 \x01(\x0b\x32\x1b.aegishealth.TrainingConfig\"\xc6\x01\n\x0eTrainingConfig\x12\x14\n\x0clocal_epochs\x18\x01 \x01(\x05\x12\x15\n\rlearning_rate\x18\x02 \x01(\x02\x12\x12\n\nfedprox_mu\x18\x03 \x01(\x02\x12\x12\n\ndp_epsilon\x18\x04 \x01(\x02\x12\x10\n\x08\x64p_delta\x18\x05 \x01(\x02\x12\x18\n\x10\x64p_max_grad_norm\x18\x06 \x01(\x02\x12\x12\n\nbatch_size\x18\x07 \x01(\x05\x12\x1f\n\x17\x63lass_weight_multiplier\x18\x08 \x01(\x02\"\x8b\x01\n\rUpdateRequest\x12\x11\n\tclient_id\x18\x01 \x01(\t\x12\x0e\n\x06job_id\x18\x02 \x01(\x03\x12\x14\n\x0cround_number\x18\x03 \x01(\x05\x12\x14\n\x0cmodel_update\x18\x04 \x01(\x0c\x12+\n\x07metrics\x18\x05 \x01(\x0b\x32\x1a.aegishealth.UpdateMetrics\"\xfb\x01\n\rUpdateMetrics\x12\x12\n\nlocal_loss\x18\x01 \x01(\x02\x12\x16\n\x0elocal_accuracy\x18\x02 \x01(\x02\x12\x13\n\x0bnum_samples\x18\x03 \x01(\x05\x12\x18\n\x10\x64p_epsilon_spent\x18\x04 \x01(\x02\x12\x18\n\x10training_time_ms\x18\x05 \x01(\x02\x12\n\n\x02\x66\x31\x18\x06 \x01(\x02\x12\x0f\n\x07\x61uc_roc\x18\x07 \x01(\x02\x12\x1a\n\x12\x63umulative_epsilon\x18\x08 \x01(\x02\x12\x19\n\x11optimal_threshold\x18\t \x01(\x02\x12\x11\n\tprecision\x18\n \x01(\x02\x12\x0e\n\x06recall\x18\x0b \x01(\x02\"3\n\x0eUpdateResponse\x12\x10\n\x08\x61\x63\x63\x65pted\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t\"8\n\x10HeartbeatRequest\x12\x11\n\tclient_id\x18\x01 \x01(\t\x12\x11\n\ttimestamp\x18\x02 \x01(\x03\"d\n\x11HeartbeatResponse\x12\r\n\x05\x61live\x18\x01 \x01(\x08\x12\x0e\n\x06status\x18\x02 \x01(\t\x12\x19\n\x11next_round_eta_ms\x18\x03 \x01(\x03\x12\x15\n\ractive_job_id\x18\x04 \x01(\x03\"&\n\x11\x44isconnectRequest\x12\x11\n\tclient_id\x18\x01 \x01(\t\"*\n\x12\x44isconnectResponse\x12\x14\n\x0c\x61\x63knowledged\x18\x01 \x01(\x08\"\xac\x01\n\rClientMessage\x12.\n\x07\x63onnect\x18\x01 \x01(\x0b\x32\x1b.aegishealth.ConnectRequestH\x00\x12,\n\x06update\x18\x02 \x01(\x0b\x32\x1a.aegishealth.UpdateRequestH\x00\x12\x32\n\theartbeat\x18\x03 \x01(\x0b\x32\x1d.aegishealth.HeartbeatRequestH\x00\x42\t\n\x07payload\"\x98\x02\n\rServerMessage\x12\x33\n\x0b\x63onnect_ack\x18\x01 \x01(\x0b\x32\x1c.aegishealth.ConnectResponseH\x00\x12+\n\x05model\x18\x02 \x01(\x0b\x32\x1a.aegishealth.ModelResponseH\x00\x12\x31\n\nupdate_ack\x18\x03 \x01(\x0b\x32\x1b.aegishealth.UpdateResponseH\x00\x12\x37\n\rheartbeat_ack\x18\x04 \x01(\x0b\x32\x1e.aegishealth.HeartbeatResponseH\x00\x12.\n\x0bround_start\x18\x05 \x01(\x0b\x32\x17.aegishealth.RoundStartH\x00\x42\t\n\x07payload\"v\n\nRoundStart\x12\x0e\n\x06job_id\x18\x01 \x01(\x03\x12\x14\n\x0cround_number\x18\x02 \x01(\x05\x12\x15\n\rmodel_weights\x18\x03 \x01(\x0c\x12+\n\x06\x63onfig\x18\x04 \x01(\x0b\x32\x1b.aegishealth.TrainingConfig2\xe0\x03\n\x11\x46\x65\x64\x65ratedLearning\x12J\n\rConnectClient\x12\x1b.aegishealth.ConnectRequest\x1a\x1c.aegishealth.ConnectResponse\x12G\n\x0eGetGlobalModel\x12\x19.aegishealth.ModelRequest\x1a\x1a.aegishealth.ModelResponse\x12G\n\x0cSubmitUpdate\x12\x1a.aegishealth.UpdateRequest\x1a\x1b.aegishealth.UpdateResponse\x12J\n\tHeartbeat\x12\x1d.aegishealth.HeartbeatRequest\x1a\x1e.aegishealth.HeartbeatResponse\x12S\n\x10\x44isconnectClient\x12\x1e.aegishealth.DisconnectRequest\x1a\x1f.aegishealth.DisconnectResponse\x12L\n\x0eTrainingStream\x12\x1a.aegishealth.ClientMessage\x1a\x1a.aegishealth.ServerMessage(\x01\x30\x01\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0f\x66\x65\x64\x65rated.proto\x12\x0b\x61\x65gishealth\"L\n\x0e\x43onnectRequest\x12\x11\n\tclient_id\x18\x01 \x01(\x03\x12\x13\n\x0bnum_samples\x18\x02 \x01(\x05\x12\x12\n\nauth_token\x18\x03 \x01(\t\"G\n\x0f\x43onnectResponse\x12\x10\n\x08\x61\x63\x63\x65pted\x18\x01 \x01(\x08\x12\x11\n\tclient_id\x18\x02 \x01(\t\x12\x0f\n\x07message\x18\x03 \x01(\t\"1\n\x0cModelRequest\x12\x11\n\tclient_id\x18\x01 \x01(\t\x12\x0e\n\x06job_id\x18\x02 \x01(\x03\"\x8d\x01\n\rModelResponse\x12\x0e\n\x06job_id\x18\x01 \x01(\x03\x12\x14\n\x0cround_number\x18\x02 \x01(\x05\x12\x15\n\rmodel_weights\x18\x03 \x01(\x0c\x12+\n\x06\x63onfig\x18\x04 \x01(\x0b\x32\x1b.aegishealth.TrainingConfig\x12\x12\n\nhe_context\x18\x05 \x01(\x0c\"\xd6\x01\n\x0eTrainingConfig\x12\x14\n\x0clocal_epochs\x18\x01 \x01(\x05\x12\x15\n\rlearning_rate\x18\x02 \x01(\x02\x12\x12\n\nfedprox_mu\x18\x03 \x01(\x02\x12\x12\n\ndp_epsilon\x18\x04 \x01(\x02\x12\x10\n\x08\x64p_delta\x18\x05 \x01(\x02\x12\x18\n\x10\x64p_max_grad_norm\x18\x06 \x01(\x02\x12\x12\n\nbatch_size\x18\x07 \x01(\x05\x12\x1f\n\x17\x63lass_weight_multiplier\x18\x08 \x01(\x02\x12\x0e\n\x06use_he\x18\t \x01(\x08\"\xa1\x01\n\rUpdateRequest\x12\x11\n\tclient_id\x18\x01 \x01(\t\x12\x0e\n\x06job_id\x18\x02 \x01(\x03\x12\x14\n\x0cround_number\x18\x03 \x01(\x05\x12\x14\n\x0cmodel_update\x18\x04 \x01(\x0c\x12+\n\x07metrics\x18\x05 \x01(\x0b\x32\x1a.aegishealth.UpdateMetrics\x12\x14\n\x0cis_encrypted\x18\x06 \x01(\x08\"\xfb\x01\n\rUpdateMetrics\x12\x12\n\nlocal_loss\x18\x01 \x01(\x02\x12\x16\n\x0elocal_accuracy\x18\x02 \x01(\x02\x12\x13\n\x0bnum_samples\x18\x03 \x01(\x05\x12\x18\n\x10\x64p_epsilon_spent\x18\x04 \x01(\x02\x12\x18\n\x10training_time_ms\x18\x05 \x01(\x02\x12\n\n\x02\x66\x31\x18\x06 \x01(\x02\x12\x0f\n\x07\x61uc_roc\x18\x07 \x01(\x02\x12\x1a\n\x12\x63umulative_epsilon\x18\x08 \x01(\x02\x12\x19\n\x11optimal_threshold\x18\t \x01(\x02\x12\x11\n\tprecision\x18\n \x01(\x02\x12\x0e\n\x06recall\x18\x0b \x01(\x02\"3\n\x0eUpdateResponse\x12\x10\n\x08\x61\x63\x63\x65pted\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t\"8\n\x10HeartbeatRequest\x12\x11\n\tclient_id\x18\x01 \x01(\t\x12\x11\n\ttimestamp\x18\x02 \x01(\x03\"d\n\x11HeartbeatResponse\x12\r\n\x05\x61live\x18\x01 \x01(\x08\x12\x0e\n\x06status\x18\x02 \x01(\t\x12\x19\n\x11next_round_eta_ms\x18\x03 \x01(\x03\x12\x15\n\ractive_job_id\x18\x04 \x01(\x03\"&\n\x11\x44isconnectRequest\x12\x11\n\tclient_id\x18\x01 \x01(\t\"*\n\x12\x44isconnectResponse\x12\x14\n\x0c\x61\x63knowledged\x18\x01 \x01(\x08\"\xac\x01\n\rClientMessage\x12.\n\x07\x63onnect\x18\x01 \x01(\x0b\x32\x1b.aegishealth.ConnectRequestH\x00\x12,\n\x06update\x18\x02 \x01(\x0b\x32\x1a.aegishealth.UpdateRequestH\x00\x12\x32\n\theartbeat\x18\x03 \x01(\x0b\x32\x1d.aegishealth.HeartbeatRequestH\x00\x42\t\n\x07payload\"\x98\x02\n\rServerMessage\x12\x33\n\x0b\x63onnect_ack\x18\x01 \x01(\x0b\x32\x1c.aegishealth.ConnectResponseH\x00\x12+\n\x05model\x18\x02 \x01(\x0b\x32\x1a.aegishealth.ModelResponseH\x00\x12\x31\n\nupdate_ack\x18\x03 \x01(\x0b\x32\x1b.aegishealth.UpdateResponseH\x00\x12\x37\n\rheartbeat_ack\x18\x04 \x01(\x0b\x32\x1e.aegishealth.HeartbeatResponseH\x00\x12.\n\x0bround_start\x18\x05 \x01(\x0b\x32\x17.aegishealth.RoundStartH\x00\x42\t\n\x07payload\"\x8a\x01\n\nRoundStart\x12\x0e\n\x06job_id\x18\x01 \x01(\x03\x12\x14\n\x0cround_number\x18\x02 \x01(\x05\x12\x15\n\rmodel_weights\x18\x03 \x01(\x0c\x12+\n\x06\x63onfig\x18\x04 \x01(\x0b\x32\x1b.aegishealth.TrainingConfig\x12\x12\n\nhe_context\x18\x05 \x01(\x0c\x32\xe0\x03\n\x11\x46\x65\x64\x65ratedLearning\x12J\n\rConnectClient\x12\x1b.aegishealth.ConnectRequest\x1a\x1c.aegishealth.ConnectResponse\x12G\n\x0eGetGlobalModel\x12\x19.aegishealth.ModelRequest\x1a\x1a.aegishealth.ModelResponse\x12G\n\x0cSubmitUpdate\x12\x1a.aegishealth.UpdateRequest\x1a\x1b.aegishealth.UpdateResponse\x12J\n\tHeartbeat\x12\x1d.aegishealth.HeartbeatRequest\x1a\x1e.aegishealth.HeartbeatResponse\x12S\n\x10\x44isconnectClient\x12\x1e.aegishealth.DisconnectRequest\x1a\x1f.aegishealth.DisconnectResponse\x12L\n\x0eTrainingStream\x12\x1a.aegishealth.ClientMessage\x1a\x1a.aegishealth.ServerMessage(\x01\x30\x01\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -37,30 +37,30 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_CONNECTRESPONSE']._serialized_end=181
   _globals['_MODELREQUEST']._serialized_start=183
   _globals['_MODELREQUEST']._serialized_end=232
-  _globals['_MODELRESPONSE']._serialized_start=234
-  _globals['_MODELRESPONSE']._serialized_end=355
-  _globals['_TRAININGCONFIG']._serialized_start=358
-  _globals['_TRAININGCONFIG']._serialized_end=556
-  _globals['_UPDATEREQUEST']._serialized_start=559
-  _globals['_UPDATEREQUEST']._serialized_end=698
-  _globals['_UPDATEMETRICS']._serialized_start=701
-  _globals['_UPDATEMETRICS']._serialized_end=952
-  _globals['_UPDATERESPONSE']._serialized_start=954
-  _globals['_UPDATERESPONSE']._serialized_end=1005
-  _globals['_HEARTBEATREQUEST']._serialized_start=1007
-  _globals['_HEARTBEATREQUEST']._serialized_end=1063
-  _globals['_HEARTBEATRESPONSE']._serialized_start=1065
-  _globals['_HEARTBEATRESPONSE']._serialized_end=1165
-  _globals['_DISCONNECTREQUEST']._serialized_start=1167
-  _globals['_DISCONNECTREQUEST']._serialized_end=1205
-  _globals['_DISCONNECTRESPONSE']._serialized_start=1207
-  _globals['_DISCONNECTRESPONSE']._serialized_end=1249
-  _globals['_CLIENTMESSAGE']._serialized_start=1252
-  _globals['_CLIENTMESSAGE']._serialized_end=1424
-  _globals['_SERVERMESSAGE']._serialized_start=1427
-  _globals['_SERVERMESSAGE']._serialized_end=1707
-  _globals['_ROUNDSTART']._serialized_start=1709
-  _globals['_ROUNDSTART']._serialized_end=1827
-  _globals['_FEDERATEDLEARNING']._serialized_start=1830
-  _globals['_FEDERATEDLEARNING']._serialized_end=2310
+  _globals['_MODELRESPONSE']._serialized_start=235
+  _globals['_MODELRESPONSE']._serialized_end=376
+  _globals['_TRAININGCONFIG']._serialized_start=379
+  _globals['_TRAININGCONFIG']._serialized_end=593
+  _globals['_UPDATEREQUEST']._serialized_start=596
+  _globals['_UPDATEREQUEST']._serialized_end=757
+  _globals['_UPDATEMETRICS']._serialized_start=760
+  _globals['_UPDATEMETRICS']._serialized_end=1011
+  _globals['_UPDATERESPONSE']._serialized_start=1013
+  _globals['_UPDATERESPONSE']._serialized_end=1064
+  _globals['_HEARTBEATREQUEST']._serialized_start=1066
+  _globals['_HEARTBEATREQUEST']._serialized_end=1122
+  _globals['_HEARTBEATRESPONSE']._serialized_start=1124
+  _globals['_HEARTBEATRESPONSE']._serialized_end=1224
+  _globals['_DISCONNECTREQUEST']._serialized_start=1226
+  _globals['_DISCONNECTREQUEST']._serialized_end=1264
+  _globals['_DISCONNECTRESPONSE']._serialized_start=1266
+  _globals['_DISCONNECTRESPONSE']._serialized_end=1308
+  _globals['_CLIENTMESSAGE']._serialized_start=1311
+  _globals['_CLIENTMESSAGE']._serialized_end=1483
+  _globals['_SERVERMESSAGE']._serialized_start=1486
+  _globals['_SERVERMESSAGE']._serialized_end=1766
+  _globals['_ROUNDSTART']._serialized_start=1769
+  _globals['_ROUNDSTART']._serialized_end=1907
+  _globals['_FEDERATEDLEARNING']._serialized_start=1910
+  _globals['_FEDERATEDLEARNING']._serialized_end=2390
 # @@protoc_insertion_point(module_scope)

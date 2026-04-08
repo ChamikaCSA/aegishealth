@@ -215,21 +215,27 @@ class Orchestrator:
                 for cb in self._round_callbacks:
                     cb(job.job_id, {"round": round_number, "skipped": True}, [], [])
 
-    def get_global_model(self, job_id: int) -> tuple[dict, int, dict] | None:
+    def get_global_model(self, job_id: int) -> tuple[dict, int, dict, bytes] | None:
         with self._lock:
             job = self._jobs.get(job_id)
             if job is None or job.aggregator is None:
                 return None
 
             state = job.aggregator.get_global_state()
-            return state, job.current_round, job.config
+            he_ctx_bytes = b""
+            if job.aggregator.use_he and job.aggregator._he_context:
+                from app.ml.he_engine import create_public_context
+                pub_ctx = create_public_context(job.aggregator._he_context)
+                he_ctx_bytes = pub_ctx.serialize()
+
+            return state, job.current_round, job.config, he_ctx_bytes
 
     def receive_update(
         self,
         client_id: str,
         job_id: int,
         round_number: int,
-        update: dict[str, torch.Tensor],
+        update: dict[str, torch.Tensor] | bytes,
         metrics: dict[str, Any],
     ) -> tuple[bool, str]:
         with self._lock:

@@ -199,4 +199,4 @@ You can download released models from the **Server dashboard** in the job detail
 
 ## Dataset
 
-Uses the [eICU Collaborative Research Database v2.0](https://physionet.org/content/eicu-crd/2.0/) containing ~200K ICU patient stays from 208 hospitals. The anomaly detection task predicts ICU mortality from time-series vital signs. Place the extracted dataset in `data/eicu-collaborative-research-database-2.0/` and run `split_eicu_by_client` to generate per-client raw CSVs.
+Uses the [eICU Collaborative Research Database v2.0](https://physionet.org/content/eicu-crd/2.0/) containing ~200K ICU patient stays from 208 hospitals. The anomaly detection task predicts critical events from time-series vital signs. Place the extracted dataset in `data/eicu-collaborative-research-database-2.0/` and run `split_eicu_by_client` to generate per-client raw CSVs.

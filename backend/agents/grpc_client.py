@@ -98,7 +98,7 @@ class OrchestratorClient:
 
     def get_global_model(
         self, client_id: str, job_id: int
-    ) -> tuple[dict[str, torch.Tensor], int, dict]:
+    ) -> tuple[dict[str, torch.Tensor], int, dict, bytes]:
         response = self.stub.GetGlobalModel(
             federated_pb2.ModelRequest(client_id=client_id, job_id=job_id)
         )
@@ -112,24 +112,30 @@ class OrchestratorClient:
             "dp_max_grad_norm": response.config.dp_max_grad_norm,
             "batch_size": response.config.batch_size,
             "class_weight_multiplier": response.config.class_weight_multiplier or 1.0,
+            "use_he": response.config.use_he,
         }
-        return state_dict, response.round_number, config
+        return state_dict, response.round_number, config, response.he_context
 
     def submit_update(
         self,
         client_id: str,
         job_id: int,
         round_number: int,
-        update: dict[str, torch.Tensor],
+        update: dict[str, torch.Tensor] | bytes,
         metrics: dict,
+        is_encrypted: bool = False,
     ) -> tuple[bool, str]:
-        update_bytes = serialize_state_dict(update)
+        if is_encrypted:
+            update_bytes = update
+        else:
+            update_bytes = serialize_state_dict(update)
         response = self.stub.SubmitUpdate(
             federated_pb2.UpdateRequest(
                 client_id=client_id,
                 job_id=job_id,
                 round_number=round_number,
                 model_update=update_bytes,
+                is_encrypted=is_encrypted,
                 metrics=federated_pb2.UpdateMetrics(
                     local_loss=metrics.get("local_loss", 0),
                     local_accuracy=metrics.get("local_accuracy", 0),

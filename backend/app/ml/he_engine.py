@@ -125,6 +125,68 @@ def ciphertext_size_bytes(encrypted_vectors: list["ts.CKKSVector"]) -> int:
     return sum(len(v.serialize()) for v in encrypted_vectors)
 
 
+import pickle
+
+def serialize_encrypted_state(
+    encrypted_vectors: list["ts.CKKSVector"],
+    keys: list[str],
+    metadata: dict[str, tuple]
+) -> bytes:
+    serialized_vectors = [v.serialize() for v in encrypted_vectors]
+    return pickle.dumps((serialized_vectors, keys, metadata))
+
+def deserialize_encrypted_state(
+    data: bytes,
+    context: "ts.Context" = None
+) -> tuple[list["ts.CKKSVector"], list[str], dict[str, tuple]]:
+    serialized_vectors, keys, metadata = pickle.loads(data)
+    vectors = []
+    for s_vec in serialized_vectors:
+        if context:
+            linked = ts.lazy_ckks_vector_from(s_vec)
+            linked.link_context(context)
+            vectors.append(linked)
+        else:
+            vectors.append(ts.ckks_vector_from(s_vec))
+    return vectors, keys, metadata
+
+
+def real_secure_aggregate(
+    client_encrypted_states: list[list["ts.CKKSVector"]],
+    keys: list[str],
+    metadata: dict[str, tuple],
+    client_weights: list[float],
+    context: "ts.Context",
+) -> tuple[dict[str, torch.Tensor], dict]:
+    t1 = time.time()
+    agg_encrypted = encrypted_weighted_average(client_encrypted_states, client_weights)
+    aggregate_ms = (time.time() - t1) * 1000
+
+    agg_linked: list[ts.CKKSVector] = []
+    for vec in agg_encrypted:
+        linked = ts.lazy_ckks_vector_from(vec.serialize())
+        linked.link_context(context)
+        agg_linked.append(linked)
+
+    t2 = time.time()
+    aggregated_state = decrypt_state_dict(agg_linked, keys, metadata)
+    decrypt_ms = (time.time() - t2) * 1000
+
+    ct_bytes = sum(ciphertext_size_bytes(ev) for ev in client_encrypted_states) // max(len(client_encrypted_states), 1)
+
+    stats = {
+        "encrypt_time_ms": 0,
+        "aggregate_time_ms": aggregate_ms,
+        "decrypt_time_ms": decrypt_ms,
+        "ciphertext_bytes_per_client": ct_bytes,
+        "plaintext_bytes": 0,
+        "overhead_ratio": 0,
+    }
+
+    return aggregated_state, stats
+
+
+
 def secure_aggregate(
     client_states: list[dict[str, torch.Tensor]],
     client_weights: list[float],

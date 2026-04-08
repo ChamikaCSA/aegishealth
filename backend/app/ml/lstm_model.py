@@ -1,7 +1,7 @@
 """
 LSTM Anomaly Detection Model for AegisHealth.
 
-Architecture (from PDF Section 6.5.2):
+Architecture:
   Input -> 2x Stacked LSTM -> Dropout -> FC -> 2-class logits (CrossEntropyLoss)
 Designed for temporal vital-signs sequences to predict critical events.
 """

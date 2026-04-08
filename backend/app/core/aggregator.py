@@ -132,16 +132,26 @@ class FedProxAggregator:
 
     def aggregate(
         self,
-        client_states: list[dict[str, torch.Tensor]],
+        client_states: list[dict[str, torch.Tensor] | bytes],
         client_num_samples: list[int],
     ) -> dict[str, torch.Tensor]:
         """Perform one round of aggregation."""
         weights = [float(n) for n in client_num_samples]
 
         if self.use_he and self._he_context is not None:
-            self.global_state, self.last_he_stats = secure_federated_average(
-                self.global_state, client_states, weights,
-                he_context=self._he_context,
+            from app.ml.he_engine import deserialize_encrypted_state, real_secure_aggregate
+            vectors_list = []
+            keys = None
+            metadata = None
+            for state in client_states:
+                vecs, k, meta = deserialize_encrypted_state(state, self._he_context)
+                if keys is None:
+                    keys = k
+                    metadata = meta
+                vectors_list.append(vecs)
+            
+            self.global_state, self.last_he_stats = real_secure_aggregate(
+                vectors_list, keys, metadata, weights, self._he_context
             )
         else:
             self.global_state = federated_average(

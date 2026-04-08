@@ -59,7 +59,7 @@ class FederatedLearningServicer(federated_pb2_grpc.FederatedLearningServicer):
             context.set_details("No active job or model found")
             return federated_pb2.ModelResponse()
 
-        state_dict, round_num, config = result
+        state_dict, round_num, config, he_ctx_bytes = result
         model_bytes = serialize_state_dict(state_dict)
 
         return federated_pb2.ModelResponse(
@@ -75,17 +75,22 @@ class FederatedLearningServicer(federated_pb2_grpc.FederatedLearningServicer):
                 dp_max_grad_norm=config.get("dp_max_grad_norm", 1.0),
                 batch_size=config.get("batch_size", 64),
                 class_weight_multiplier=config.get("class_weight_multiplier", 1.0),
+                use_he=config.get("use_he", False),
             ),
+            he_context=he_ctx_bytes,
         )
 
     def SubmitUpdate(self, request, context):
-        update_dict = deserialize_state_dict(request.model_update)
+        if request.is_encrypted:
+            update_data = request.model_update
+        else:
+            update_data = deserialize_state_dict(request.model_update)
 
         accepted, msg = self.orchestrator.receive_update(
             client_id=request.client_id,
             job_id=request.job_id,
             round_number=request.round_number,
-            update=update_dict,
+            update=update_data,
             metrics={
                 "local_loss": request.metrics.local_loss,
                 "local_accuracy": request.metrics.local_accuracy,

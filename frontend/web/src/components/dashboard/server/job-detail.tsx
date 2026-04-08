@@ -1,5 +1,7 @@
 "use client";
 
+import { useMemo } from "react";
+
 import {
   Card,
   CardContent,
@@ -25,9 +27,12 @@ import {
   Legend,
 } from "recharts";
 import { LogViewer } from "@/components/shared/log-viewer";
+import { FleetTable } from "@/components/dashboard/server/fleet-table";
 import type { Job } from "@/hooks/useJobs";
 import type { RoundMetric } from "@/hooks/useRounds";
 import type { AuditLogRow } from "@/hooks/useAuditLogs";
+import type { FleetClient } from "@/hooks/useFleet";
+import type { ClientRow } from "@/hooks/useClients";
 import type { LogEvent } from "@/types/logging";
 import { Download, ChevronDown, Send } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +41,8 @@ interface JobDetailProps {
   job: Job;
   rounds: RoundMetric[];
   auditLogs: AuditLogRow[];
+  fleet: FleetClient[];
+  clients: ClientRow[];
   onStartJob: (id: number) => void;
   onStopJob: () => void;
   onDownloadModel: (job: Job, kind: "pt" | "onnx") => void;
@@ -49,6 +56,8 @@ export function JobDetail({
   job,
   rounds,
   auditLogs,
+  fleet,
+  clients,
   onStartJob,
   onStopJob,
   onDownloadModel,
@@ -71,6 +80,14 @@ export function JobDetail({
     (m) => m.cumulative_epsilon != null && m.cumulative_epsilon > 0,
   );
 
+  const fleetClientNames = useMemo(() => {
+    const m: Record<number, string> = {};
+    for (const c of clients) {
+      m[c.id] = c.name;
+    }
+    return m;
+  }, [clients]);
+
   return (
     <div className="space-y-4">
       <Card>
@@ -81,7 +98,7 @@ export function JobDetail({
               {job.current_round}/{job.total_rounds} rounds · Acc:{" "}
               {(job.best_accuracy * 100).toFixed(1)}% · F1:{" "}
               {(job.best_f1_score * 100).toFixed(1)}% · AUC:{" "}
-              {(job.best_auc_roc * 100).toFixed(1)}%
+              {(job.best_auc_roc * 100).toFixed(1)}% · {fleet.length} Connected Clients
             </CardDescription>
           </div>
           <div className="flex flex-col items-end gap-2">
@@ -279,6 +296,8 @@ export function JobDetail({
           </CardContent>
         </Card>
       )}
+
+      <FleetTable fleet={fleet} clientNames={fleetClientNames} />
 
       <Card>
         <CardHeader>

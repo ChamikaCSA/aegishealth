@@ -10,6 +10,8 @@ import { JobDetail } from "@/components/dashboard/server/job-detail";
 import { useJobs } from "@/hooks/useJobs";
 import { useRounds } from "@/hooks/useRounds";
 import { useAuditLogs } from "@/hooks/useAuditLogs";
+import { useFleet } from "@/hooks/useFleet";
+import { useClients } from "@/hooks/useClients";
 import type { Job } from "@/hooks/useJobs";
 import { toast } from "sonner";
 import { ArrowLeft } from "lucide-react";
@@ -26,6 +28,8 @@ export default function JobDetailPage() {
   const { jobs, fetchJobs, initialLoadComplete } = useJobs();
   const { rounds } = useRounds(jobId);
   const { auditLogs } = useAuditLogs(jobId);
+  const { fleet } = useFleet();
+  const { clients } = useClients();
 
   const [token, setToken] = useState<string | null>(null);
   const [startingJobId, setStartingJobId] = useState<number | null>(null);
@@ -148,6 +152,8 @@ export default function JobDetailPage() {
         job={job}
         rounds={rounds}
         auditLogs={auditLogs}
+        fleet={fleet}
+        clients={clients}
         onStartJob={handleStartJob}
         onStopJob={handleStopJob}
         onDownloadModel={handleDownloadModel}

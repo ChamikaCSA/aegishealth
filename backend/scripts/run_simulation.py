@@ -50,6 +50,7 @@ def run_federated_simulation(
     output_dir: str = "results",
     class_weight_multiplier: float = 1.0,
     threshold_beta: float = 1.0,
+    client_ids: list[int] | None = None,
 ) -> dict:
     """Run a complete federated training simulation."""
 
@@ -66,6 +67,20 @@ def run_federated_simulation(
                            "Run split_eicu_by_client first.")
 
     logger.info("Discovered %d client directories in %s", len(all_clients), raw_base)
+
+    if client_ids:
+        wanted = set(client_ids)
+        missing = wanted - set(all_clients.keys())
+        if missing:
+            raise RuntimeError(
+                f"--client-ids not found under {raw_base}: {sorted(missing)}"
+            )
+        all_clients = {cid: all_clients[cid] for cid in client_ids if cid in all_clients}
+        logger.info(
+            "Restricted to %d client id(s) for preprocessing: %s",
+            len(all_clients),
+            list(all_clients.keys()),
+        )
 
     client_data: dict[int, tuple[np.ndarray, np.ndarray, int]] = {}
     for cid, cdir in all_clients.items():
@@ -249,7 +264,8 @@ def run_federated_simulation(
         "total_epsilon_spent": privacy_accountant.total_epsilon_spent,
     }
 
-    exp_name = f"fedprox_mu{fedprox_mu}_eps{dp_epsilon}_clients{num_clients}"
+    dp_tag = "nodp" if not use_dp else f"dp_eps{dp_epsilon}"
+    exp_name = f"fedprox_mu{fedprox_mu}_{dp_tag}_clients{num_clients}"
     with open(out_path / f"{exp_name}.json", "w") as f:
         json.dump(results, f, indent=2)
 
@@ -270,12 +286,20 @@ def main():
     parser.add_argument("--strategy", default="largest", choices=["largest", "random", "diverse"])
     parser.add_argument("--data-dir", default=None,
                         help="Path to raw client data base dir (default: data/raw/)")
+    parser.add_argument(
+        "--client-ids",
+        default=None,
+        help="Comma-separated client IDs to include only (avoids preprocessing all hospitals)",
+    )
     parser.add_argument("--output-dir", default="results")
     parser.add_argument("--class-weight-multiplier", type=float, default=1.0,
                         help=">1.0 boosts recall; <1.0 reduces false positives")
     parser.add_argument("--threshold-beta", type=float, default=1.0,
                         help="F-beta parameter for optimal threshold search (>1 favors recall)")
     args = parser.parse_args()
+    cid_list = None
+    if args.client_ids:
+        cid_list = [int(x.strip()) for x in args.client_ids.split(",") if x.strip()]
 
     run_federated_simulation(
         num_clients=args.num_clients,
@@ -291,6 +315,7 @@ def main():
         output_dir=args.output_dir,
         class_weight_multiplier=args.class_weight_multiplier,
         threshold_beta=args.threshold_beta,
+        client_ids=cid_list,
     )
 
 

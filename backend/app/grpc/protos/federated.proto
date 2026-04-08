@@ -44,6 +44,7 @@ message ModelResponse {
   int32 round_number = 2;
   bytes model_weights = 3;  // Serialized state_dict
   TrainingConfig config = 4;
+  bytes he_context = 5;     // Serialized TenSEAL public context
 }
 
 message TrainingConfig {
@@ -55,6 +56,7 @@ message TrainingConfig {
   float dp_max_grad_norm = 6;
   int32 batch_size = 7;
   float class_weight_multiplier = 8;
+  bool use_he = 9;
 }
 
 message UpdateRequest {
@@ -63,6 +65,7 @@ message UpdateRequest {
   int32 round_number = 3;
   bytes model_update = 4;  // Serialized update dict
   UpdateMetrics metrics = 5;
+  bool is_encrypted = 6;
 }
 
 message UpdateMetrics {
@@ -128,4 +131,5 @@ message RoundStart {
   int32 round_number = 2;
   bytes model_weights = 3;
   TrainingConfig config = 4;
+  bytes he_context = 5;
 }

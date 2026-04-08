@@ -83,7 +83,7 @@ class EdgeAgent:
             return False
 
         try:
-            global_state, round_num, config = self.grpc_client.get_global_model(
+            global_state, round_num, config, he_context_bytes = self.grpc_client.get_global_model(
                 self._connected_client_id, job_id
             )
         except Exception as e:
@@ -106,6 +106,21 @@ class EdgeAgent:
             class_weight_multiplier=config.get("class_weight_multiplier", 1.0),
         )
 
+        update = local_state
+        is_encrypted = False
+
+        if config.get("use_he", False) and he_context_bytes:
+            from app.ml.he_engine import encrypt_state_dict, serialize_encrypted_state
+            import tenseal as ts
+            logger.info("Encrypting local update with HE...")
+            t0 = time.time()
+            public_ctx = ts.context_from(he_context_bytes)
+            enc_vecs, meta = encrypt_state_dict(local_state, public_ctx)
+            keys = list(local_state.keys())
+            update = serialize_encrypted_state(enc_vecs, keys, meta)
+            is_encrypted = True
+            metrics["encrypt_time_ms"] = (time.time() - t0) * 1000
+
         logger.info("Training done: loss=%.4f, acc=%.4f, time=%.0fms",
                      metrics["local_loss"], metrics["local_accuracy"],
                      metrics["training_time_ms"])
@@ -114,8 +129,9 @@ class EdgeAgent:
             client_id=self._connected_client_id,
             job_id=job_id,
             round_number=round_num,
-            update=local_state,
+            update=update,
             metrics=metrics,
+            is_encrypted=is_encrypted,
         )
 
         logger.info("Update %s: %s", "accepted" if accepted else "rejected", msg)
@@ -155,7 +171,7 @@ class EdgeAgent:
                 status, job_id = self.grpc_client.heartbeat(self._connected_client_id)
                 if status == "training" and job_id > 0:
                     try:
-                        global_state, round_num, config = self.grpc_client.get_global_model(
+                        global_state, round_num, config, _ = self.grpc_client.get_global_model(
                             self._connected_client_id, job_id
                         )
                         prev = last_round.get(job_id, 0)
