@@ -1,10 +1,10 @@
 """
 Preprocess raw per-client CSVs into LSTM-ready numpy arrays.
 
-Reads patients.csv, vitals.csv, and events.csv from a client directory,
+Reads patients.csv, vitals.csv, and treatment.csv from a client directory,
 builds sliding-window time-series sequences, and labels each window
-based on whether a critical event (vasopressor or mechanical ventilation
-onset) occurs within the next ``prediction_horizon`` minutes.
+based on whether a critical event (see ``app.data.event_definitions``)
+occurs within the next ``prediction_horizon`` minutes.
 """
 
 from __future__ import annotations
@@ -16,6 +16,7 @@ import numpy as np
 import pandas as pd
 
 from app.core.config import settings
+from app.data.event_definitions import critical_event_treatment_mask
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,119 @@ VITAL_FEATURES: list[str] = [
 ]
 
 PATIENT_ID_COL = "patientunitstayid"
+TREATMENT_COLS: list[str] = [
+    PATIENT_ID_COL,
+    "treatmentoffset",
+    "treatmentstring",
+]
+
+
+def _build_event_onset_map_from_df(treatments: pd.DataFrame) -> dict[int, float]:
+    """Earliest treatmentoffset per stay for configured escalation keywords."""
+    if treatments.empty:
+        return {}
+
+    mask = critical_event_treatment_mask(treatments["treatmentstring"])
+    filtered = treatments.loc[mask]
+    if filtered.empty:
+        return {}
+
+    first = filtered.groupby(PATIENT_ID_COL)["treatmentoffset"].min()
+    return {int(pid): float(offset) for pid, offset in first.items()}
+
+
+def _build_event_onset_map(client_dir: Path) -> dict[int, float]:
+    """Earliest treatmentoffset per stay for configured escalation keywords."""
+    treatment_path = client_dir / "treatment.csv"
+    if not treatment_path.exists():
+        return {}
+
+    treatments = pd.read_csv(treatment_path, usecols=TREATMENT_COLS, low_memory=False)
+    return _build_event_onset_map_from_df(treatments)
+
+
+def count_positive_training_windows(
+    patients: pd.DataFrame,
+    vitals: pd.DataFrame,
+    treatments: pd.DataFrame,
+    *,
+    seq_len: int | None = None,
+    prediction_horizon: int | None = None,
+    window_stride: int | None = None,
+) -> tuple[int, int]:
+    """
+    Count positive sliding windows using the same rules as ``preprocess_client_data``
+    (before ``max_neg_per_patient`` subsampling; all positive windows are always kept).
+
+    Returns
+    -------
+    n_positive_windows : int
+    n_positive_stays : int
+        Distinct patientunitstayid with at least one positive window.
+    """
+    if seq_len is None:
+        seq_len = settings.sequence_length
+    if prediction_horizon is None:
+        prediction_horizon = settings.prediction_horizon_minutes
+    if window_stride is None:
+        window_stride = settings.window_stride
+
+    if patients.empty or vitals.empty:
+        return 0, 0
+
+    event_map = _build_event_onset_map_from_df(treatments)
+
+    valid_pids = set(patients[PATIENT_ID_COL]) & set(vitals[PATIENT_ID_COL])
+    if not valid_pids:
+        return 0, 0
+
+    vitals = vitals[vitals[PATIENT_ID_COL].isin(valid_pids)].copy()
+    vitals = vitals.sort_values([PATIENT_ID_COL, "observationoffset"])
+
+    for feat in VITAL_FEATURES:
+        if feat not in vitals.columns:
+            vitals[feat] = np.nan
+
+    vitals[VITAL_FEATURES] = (
+        vitals.groupby(PATIENT_ID_COL)[VITAL_FEATURES]
+        .transform(lambda s: s.ffill().bfill())
+    )
+    vitals[VITAL_FEATURES] = vitals[VITAL_FEATURES].fillna(0.0)
+
+    means = vitals[VITAL_FEATURES].mean()
+    stds = vitals[VITAL_FEATURES].std().fillna(1.0)
+    stds = stds.mask(stds < 1e-8, 1.0)
+    mean_arr = means.to_numpy()
+    std_arr = stds.to_numpy()
+
+    n_pos_windows = 0
+    pos_stays: set[int] = set()
+
+    for pid in sorted(valid_pids):
+        g = vitals[vitals[PATIENT_ID_COL] == pid].sort_values("observationoffset")
+        if len(g) < seq_len:
+            continue
+
+        offsets = g["observationoffset"].to_numpy(dtype=np.float64)
+        arr = g[VITAL_FEATURES].to_numpy(dtype=np.float64)
+        arr = (arr - mean_arr) / std_arr
+
+        t_event = event_map.get(int(pid))
+        start = 0
+        while start + seq_len <= len(arr):
+            t_end = float(offsets[start + seq_len - 1])
+
+            if t_event is not None:
+                if t_end >= t_event:
+                    start += window_stride
+                    continue
+                if t_event - prediction_horizon <= t_end < t_event:
+                    n_pos_windows += 1
+                    pos_stays.add(int(pid))
+
+            start += window_stride
+
+    return n_pos_windows, len(pos_stays)
 
 
 def preprocess_client_data(
@@ -52,8 +166,8 @@ def preprocess_client_data(
     Parameters
     ----------
     client_dir : Path
-        Directory containing ``patients.csv``, ``vitals.csv``, and
-        ``events.csv``.
+        Directory containing ``patients.csv`` and ``vitals.csv`` plus
+        ``treatment.csv`` for critical-event onset times.
     seq_len : int, optional
         Number of time-steps per window.  Falls back to
         ``settings.sequence_length`` (default 24).
@@ -88,7 +202,6 @@ def preprocess_client_data(
 
     patients_path = client_dir / "patients.csv"
     vitals_path = client_dir / "vitals.csv"
-    events_path = client_dir / "events.csv"
 
     if not patients_path.exists() or not vitals_path.exists():
         logger.warning("Missing CSV files in %s", client_dir)
@@ -101,13 +214,7 @@ def preprocess_client_data(
         logger.warning("Empty CSV files in %s", client_dir)
         return empty
 
-    # Build event-onset lookup {patient_id: event_offset_minutes}
-    event_map: dict[int, float] = {}
-    if events_path.exists():
-        events = pd.read_csv(events_path)
-        if not events.empty:
-            for _, row in events.iterrows():
-                event_map[int(row[PATIENT_ID_COL])] = float(row["event_offset"])
+    event_map = _build_event_onset_map(client_dir)
 
     valid_pids = set(patients[PATIENT_ID_COL]) & set(vitals[PATIENT_ID_COL])
     vitals = vitals[vitals[PATIENT_ID_COL].isin(valid_pids)]
@@ -148,7 +255,7 @@ def preprocess_client_data(
         t_event = event_map.get(int(pid))
         pos_idx: list[int] = []
         neg_idx: list[int] = []
-        window_meta: list[tuple[int, int]] = []  # (label, index in pending list)
+        window_meta: list[tuple[int, int]] = []
 
         pending: list[np.ndarray] = []
         start = 0

@@ -34,7 +34,7 @@ import type { AuditLogRow } from "@/hooks/useAuditLogs";
 import type { FleetClient } from "@/hooks/useFleet";
 import type { ClientRow } from "@/hooks/useClients";
 import type { LogEvent } from "@/types/logging";
-import { Download, ChevronDown, Send, Cpu, Shield, Network, Sparkles } from "lucide-react";
+import { Download, ChevronDown, Send, Cpu, Shield, Network } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 interface JobDetailProps {
@@ -78,6 +78,12 @@ export function JobDetail({
   }));
 
   const jobConfig = job.config as any;
+  const totalRounds = Number(jobConfig.num_rounds ?? job.total_rounds ?? 1) || 1;
+  const epsilonPerRound =
+    jobConfig.dp_epsilon_per_round ??
+    ((Number(jobConfig.dp_epsilon ?? 0) || 0) > 0
+      ? (Number(jobConfig.dp_epsilon) || 0) / Math.max(totalRounds, 1)
+      : 0);
 
   const hasEpsilon = metrics.some(
     (m) => m.cumulative_epsilon != null && m.cumulative_epsilon > 0,
@@ -179,7 +185,7 @@ export function JobDetail({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-6 text-sm sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-6 text-sm grid-cols-1 md:grid-cols-3">
             <div className="space-y-3">
               <h4 className="font-medium text-primary flex items-center gap-2">
                 <Cpu className="size-4" aria-hidden />
@@ -227,13 +233,17 @@ export function JobDetail({
               <ul className="space-y-2 text-muted-foreground">
                 <li className="grid grid-cols-2 gap-4 border-b pb-1">
                   <div className="flex justify-between">
-                    <span>Epsilon</span>
+                    <span>Epsilon (total)</span>
                     <span className="font-medium text-foreground">{jobConfig.dp_epsilon ?? "—"}</span>
                   </div>
                   <div className="flex justify-between border-l pl-4">
                     <span>Delta</span>
                     <span className="font-medium text-foreground">{jobConfig.dp_delta ?? "—"}</span>
                   </div>
+                </li>
+                <li className="flex justify-between border-b pb-1">
+                  <span>Epsilon / round</span>
+                  <span className="font-medium text-foreground">{epsilonPerRound > 0 ? epsilonPerRound.toFixed(4) : "0"}</span>
                 </li>
                 <li className="flex justify-between border-b pb-1">
                   <span>Max Grad Norm</span>
@@ -269,26 +279,6 @@ export function JobDetail({
               </ul>
             </div>
 
-            <div className="space-y-3">
-              <h4 className="font-medium text-primary flex items-center gap-2">
-                <Sparkles className="size-4" aria-hidden />
-                Architecture
-              </h4>
-              <ul className="space-y-2 text-muted-foreground">
-                <li className="flex justify-between border-b pb-1">
-                  <span>Hidden Size</span>
-                  <span className="font-medium text-foreground">{jobConfig.lstm_hidden_size ?? "—"}</span>
-                </li>
-                <li className="flex justify-between border-b pb-1">
-                  <span>LSTM Layers</span>
-                  <span className="font-medium text-foreground">{jobConfig.lstm_num_layers ?? "—"}</span>
-                </li>
-                <li className="flex justify-between border-b pb-1">
-                  <span>Seq. Length</span>
-                  <span className="font-medium text-foreground">{jobConfig.sequence_length ?? "—"}</span>
-                </li>
-              </ul>
-            </div>
           </div>
         </CardContent>
       </Card>

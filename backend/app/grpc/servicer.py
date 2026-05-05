@@ -62,6 +62,15 @@ class FederatedLearningServicer(federated_pb2_grpc.FederatedLearningServicer):
         state_dict, round_num, config, he_ctx_bytes = result
         model_bytes = serialize_state_dict(state_dict)
 
+        total_rounds = max(int(config.get("num_rounds", 1) or 1), 1)
+        dp_epsilon_total = float(config.get("dp_epsilon", 8.0) or 0.0)
+        dp_epsilon_per_round = float(
+            config.get(
+                "dp_epsilon_per_round",
+                (dp_epsilon_total / total_rounds) if dp_epsilon_total > 0 else 0.0,
+            )
+        )
+
         return federated_pb2.ModelResponse(
             job_id=request.job_id,
             round_number=round_num,
@@ -70,7 +79,7 @@ class FederatedLearningServicer(federated_pb2_grpc.FederatedLearningServicer):
                 local_epochs=config.get("local_epochs", 5),
                 learning_rate=config.get("learning_rate", 0.001),
                 fedprox_mu=config.get("fedprox_mu", 0.01),
-                dp_epsilon=config.get("dp_epsilon", 8.0),
+                dp_epsilon=dp_epsilon_per_round,
                 dp_delta=config.get("dp_delta", 1e-5),
                 dp_max_grad_norm=config.get("dp_max_grad_norm", 1.0),
                 batch_size=config.get("batch_size", 64),

@@ -38,11 +38,10 @@ class LSTMAnomalyDetector(nn.Module):
         self.fc = nn.Linear(hidden_size, num_classes)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # x: (batch, seq_len, input_size)
         lstm_out, _ = self.lstm(x)
-        last_hidden = lstm_out[:, -1, :]  # (batch, hidden_size)
+        last_hidden = lstm_out[:, -1, :]
         out = self.dropout(last_hidden)
-        logits = self.fc(out)  # (batch, num_classes)
+        logits = self.fc(out)
         return logits
 
     def get_flat_params(self) -> torch.Tensor:

@@ -1,13 +1,7 @@
 "use client";
 
 import { useId, type ReactNode } from "react";
-import {
-  Cpu,
-  Network,
-  RotateCcw,
-  Shield,
-  Sparkles,
-} from "lucide-react";
+import { Cpu, Network, RotateCcw, Shield } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -38,9 +32,6 @@ export const defaultConfig = {
   min_clients_per_round: 3,
   round_timeout_seconds: 300,
   min_quorum_ratio: 0.5,
-  sequence_length: 24,
-  lstm_hidden_size: 128,
-  lstm_num_layers: 2,
 };
 
 export type JobConfig = typeof defaultConfig;
@@ -144,10 +135,6 @@ export function CreateJobDialog({
             <TabsTrigger value="orchestration" className="gap-1.5 px-3 py-2">
               <Network className="size-4 shrink-0 opacity-70" aria-hidden />
               Orchestration
-            </TabsTrigger>
-            <TabsTrigger value="model" className="gap-1.5 px-3 py-2">
-              <Sparkles className="size-4 shrink-0 opacity-70" aria-hidden />
-              Model
             </TabsTrigger>
           </TabsList>
 
@@ -308,7 +295,7 @@ export function CreateJobDialog({
                 <Field
                   id={field("eps")}
                   label="DP ε (epsilon)"
-                  hint="Privacy budget ε per round. Lower ε: stronger privacy, usually lower utility."
+                  hint="Total privacy budget ε for the whole job. It is allocated across communication rounds."
                 >
                   <Input
                     id={field("eps")}
@@ -475,92 +462,6 @@ export function CreateJobDialog({
                             0.1,
                             parseNum(e.target.value, config.min_quorum_ratio)
                           )
-                        ),
-                      })
-                    }
-                  />
-                </Field>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="model" className="mt-0 space-y-4">
-              <p className="text-muted-foreground text-sm">
-                LSTM model size and how many time steps each sample includes. Use
-                the same sequence length as in your data preparation.
-              </p>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field
-                  id={field("hidden")}
-                  label="LSTM hidden size"
-                  hint="Hidden state width per LSTM layer."
-                >
-                  <Input
-                    id={field("hidden")}
-                    type="number"
-                    min={1}
-                    inputMode="numeric"
-                    value={config.lstm_hidden_size}
-                    onChange={(e) =>
-                      onConfigChange({
-                        ...config,
-                        lstm_hidden_size: Math.max(
-                          1,
-                          parseIntSafe(
-                            e.target.value,
-                            config.lstm_hidden_size
-                          )
-                        ),
-                      })
-                    }
-                  />
-                </Field>
-                <Field
-                  id={field("layers")}
-                  label="LSTM layers"
-                  hint="Stacked LSTM depth (1–8)."
-                >
-                  <Input
-                    id={field("layers")}
-                    type="number"
-                    min={1}
-                    max={8}
-                    inputMode="numeric"
-                    value={config.lstm_num_layers}
-                    onChange={(e) =>
-                      onConfigChange({
-                        ...config,
-                        lstm_num_layers: Math.min(
-                          8,
-                          Math.max(
-                            1,
-                            parseIntSafe(
-                              e.target.value,
-                              config.lstm_num_layers
-                            )
-                          )
-                        ),
-                      })
-                    }
-                  />
-                </Field>
-                <Field
-                  id={field("seq")}
-                  label="Sequence length (timesteps)"
-                  hint="Time steps per sample; must match your prepared data (often 24)."
-                  className="sm:col-span-2"
-                >
-                  <Input
-                    id={field("seq")}
-                    type="number"
-                    min={1}
-                    inputMode="numeric"
-                    value={config.sequence_length}
-                    onChange={(e) =>
-                      onConfigChange({
-                        ...config,
-                        sequence_length: Math.max(
-                          1,
-                          parseIntSafe(e.target.value, config.sequence_length)
                         ),
                       })
                     }

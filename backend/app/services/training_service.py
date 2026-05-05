@@ -22,6 +22,8 @@ logger = logging.getLogger(__name__)
 def _register_persistence() -> None:
     """Register orchestrator callback to persist rounds to Supabase and chain next round."""
     orchestrator = get_orchestrator()
+    if getattr(orchestrator, "_persistence_callback_registered", False):
+        return
 
     def on_round_complete(
         job_id: int,
@@ -128,6 +130,39 @@ def _register_persistence() -> None:
                 best_auc_roc=best_auc,
             )
 
+            budget_exhausted = round_metrics.get("privacy_budget_exhausted", False)
+            if budget_exhausted:
+                logger.info(
+                    "Privacy budget exhausted for job %d after round %d",
+                    job_id,
+                    round_num,
+                )
+                log_event_sync(
+                    AuditEventType.ROUND_COMPLETED,
+                    job_id=job_id,
+                    details={
+                        "round": round_metrics.get("round"),
+                        "participating_clients": round_metrics.get(
+                            "participating_clients"
+                        ),
+                        "privacy_budget_exhausted": True,
+                    },
+                )
+                pt_path, onnx_path = export_and_upload_final_model(job_id)
+                log_event_sync(AuditEventType.JOB_COMPLETED, job_id=job_id)
+                orchestrator.set_all_clients_idle()
+                orchestrator.finish_job(job_id)
+                sync_fleet()
+                completed_at = datetime.now(timezone.utc).isoformat()
+                JobRepository.update_job_status(
+                    job_id,
+                    "completed",
+                    completed_at=completed_at,
+                    model_path_pt=pt_path,
+                    model_path_onnx=onnx_path,
+                )
+                return
+
             if job.current_round < job.total_rounds:
                 log_event_sync(
                     AuditEventType.ROUND_COMPLETED,
@@ -169,6 +204,7 @@ def _register_persistence() -> None:
             logger.exception("Persistence callback failed for job %d: %s", job_id, e)
 
     orchestrator.on_round_complete(on_round_complete)
+    setattr(orchestrator, "_persistence_callback_registered", True)
 
 
 def start_job(job_id: int) -> dict:
@@ -220,6 +256,4 @@ def stop_job(job_id: int) -> dict:
     sync_fleet()
     return {"status": "stopped", "job_id": job_id}
 
-
-# Register persistence on module load
 _register_persistence()

@@ -97,13 +97,20 @@ class Orchestrator:
             use_he=bool(config.get("use_he", False)),
         )
 
-        dp_epsilon = config.get("dp_epsilon", 0)
-        num_rounds = config.get("num_rounds", settings.default_num_rounds)
+        dp_epsilon = float(config.get("dp_epsilon", 0) or 0)
+        num_rounds = max(int(config.get("num_rounds", settings.default_num_rounds) or 1), 1)
         dp_delta = config.get("dp_delta", 1e-5)
+        dp_epsilon_per_round = (dp_epsilon / num_rounds) if dp_epsilon > 0 else 0.0
+        config = {
+            **config,
+            "num_rounds": num_rounds,
+            "dp_epsilon_total": dp_epsilon,
+            "dp_epsilon_per_round": dp_epsilon_per_round,
+        }
         accountant = None
         if dp_epsilon and dp_epsilon > 0:
             accountant = PrivacyAccountant(
-                epsilon_budget=dp_epsilon * num_rounds,
+                epsilon_budget=dp_epsilon,
                 delta=dp_delta,
             )
 
@@ -322,6 +329,11 @@ class Orchestrator:
             "aggregation_time_ms": agg_time,
             "model_bytes": model_bytes,
             "cumulative_epsilon": cumulative_epsilon,
+            "privacy_budget_exhausted": (
+                job.privacy_accountant.budget_exhausted
+                if job.privacy_accountant is not None
+                else False
+            ),
         }
         job.round_metrics.append(round_metrics)
 

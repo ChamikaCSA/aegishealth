@@ -60,7 +60,7 @@ def get_model_download_url(
         raise ValueError(f"No {format.upper()} model available for this job")
 
     if user_role == "server":
-        pass  # Server can always download
+        pass
     elif user_role == "client":
         if not job.get("model_released_at"):
             raise ValueError("Model not yet released")

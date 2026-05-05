@@ -6,10 +6,11 @@ dataset, groups by hospitalid, and writes per client:
 
     data/raw/client_{id}/patients.csv   — patient metadata (no outcome label)
     data/raw/client_{id}/vitals.csv     — time-series vitals (11 features)
-    data/raw/client_{id}/events.csv     — earliest critical-event onset per stay
+    data/raw/client_{id}/treatment.csv  — raw treatment records per stay
 
-Critical events are the earliest treatment offset where treatmentstring matches
-vasopressors or mechanical ventilation (composite escalation proxy).
+Hospitals are included only if they have at least ``min_patients`` stays and at
+least ``min_positive_windows`` positive sliding windows under the same labeling
+rules as ``app.data.preprocessor.preprocess_client_data``.
 """
 
 import argparse
@@ -22,6 +23,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.core.config import settings
+from app.data.preprocessor import count_positive_training_windows
 
 logging.basicConfig(
     level=logging.INFO,
@@ -57,31 +59,9 @@ VITAL_FEATURES = [
 VITAL_COLS = [PATIENT_COL, "observationoffset"] + VITAL_FEATURES
 
 
-def _extract_event_onsets(data_path: Path) -> dict[int, float]:
-    """Earliest treatmentoffset (minutes) for vasopressor or mechanical ventilation per stay."""
-    path = data_path / "treatment.csv.gz"
-    if not path.exists():
-        logger.warning("treatment.csv.gz not found at %s — events will be empty", data_path)
-        return {}
-    df = pd.read_csv(
-        path,
-        compression="gzip",
-        usecols=["patientunitstayid", "treatmentoffset", "treatmentstring"],
-        low_memory=False,
-    )
-    ts = df["treatmentstring"].astype(str).str.lower()
-    mask = ts.str.contains("vasopressor", na=False) | ts.str.contains(
-        "mechanical ventilation", na=False
-    )
-    df = df.loc[mask]
-    if df.empty:
-        return {}
-    first = df.groupby("patientunitstayid")["treatmentoffset"].min()
-    return {int(k): float(v) for k, v in first.items()}
-
-
 def split_eicu(
     min_patients: int = 30,
+    min_positive_windows: int = 1,
     data_dir: str | None = None,
     output_dir: str | None = None,
 ):
@@ -107,14 +87,51 @@ def split_eicu(
         usecols=VITAL_COLS,
     )
     logger.info("  %d vital records", len(vitals))
-
-    logger.info("Extracting critical-event onsets from treatment.csv.gz ...")
-    event_onsets = _extract_event_onsets(data_path)
-    logger.info("  %d stays with at least one matching treatment", len(event_onsets))
+    treatment_path = data_path / "treatment.csv.gz"
+    if treatment_path.exists():
+        logger.info("Loading treatment records from %s ...", treatment_path)
+        treatments = pd.read_csv(
+            treatment_path,
+            compression="gzip",
+            usecols=["patientunitstayid", "treatmentoffset", "treatmentstring"],
+            low_memory=False,
+        )
+        logger.info("  %d treatment records", len(treatments))
+    else:
+        logger.warning(
+            "treatment.csv.gz not found at %s — treatment.csv files will be empty",
+            data_path,
+        )
+        treatments = pd.DataFrame(
+            columns=["patientunitstayid", "treatmentoffset", "treatmentstring"]
+        )
 
     hospital_patient_counts = patients.groupby(HOSPITAL_COL)[PATIENT_COL].nunique()
-    eligible = hospital_patient_counts[hospital_patient_counts >= min_patients].index
-    logger.info("  %d hospitals with >= %d patients", len(eligible), min_patients)
+    candidates = hospital_patient_counts.index[hospital_patient_counts >= min_patients]
+
+    eligible: list[int] = []
+    for hid in sorted(candidates.astype(int)):
+        client_patients = patients[patients[HOSPITAL_COL] == hid]
+        client_patient_ids = set(client_patients[PATIENT_COL].astype(int))
+        client_vitals = vitals[vitals[PATIENT_COL].isin(client_patient_ids)]
+        client_treatments = treatments[
+            treatments[PATIENT_COL].isin(client_patient_ids)
+        ].copy()
+        n_pos, _ = count_positive_training_windows(
+            client_patients,
+            client_vitals,
+            client_treatments,
+        )
+        if n_pos >= min_positive_windows:
+            eligible.append(int(hid))
+
+    logger.info(
+        "  %d hospitals with >= %d patients and >= %d positive training windows "
+        "(same rules as preprocess_client_data)",
+        len(eligible),
+        min_patients,
+        min_positive_windows,
+    )
 
     written = 0
     for hid in sorted(eligible):
@@ -134,12 +151,10 @@ def split_eicu(
                 client_vitals[c] = float("nan")
         client_vitals[vital_out_cols].to_csv(client_dir / "vitals.csv", index=False)
 
-        event_rows = [
-            {"patientunitstayid": pid, "event_offset": event_onsets[pid]}
-            for pid in client_patient_ids
-            if pid in event_onsets
-        ]
-        pd.DataFrame(event_rows).to_csv(client_dir / "events.csv", index=False)
+        client_treatments = treatments[
+            treatments[PATIENT_COL].isin(client_patient_ids)
+        ].copy()
+        client_treatments.to_csv(client_dir / "treatment.csv", index=False)
 
         written += 1
         if written % 20 == 0:
@@ -164,6 +179,12 @@ def main():
         help="Path to eICU dataset (default: from config)",
     )
     parser.add_argument(
+        "--min-positive-windows",
+        type=int,
+        default=1,
+        help="Min positive sliding windows per hospital (labeling matches preprocess_client_data)",
+    )
+    parser.add_argument(
         "--output-dir",
         default=None,
         help="Output directory (default: data/raw)",
@@ -172,6 +193,7 @@ def main():
 
     split_eicu(
         min_patients=args.min_patients,
+        min_positive_windows=args.min_positive_windows,
         data_dir=args.data_dir,
         output_dir=args.output_dir,
     )

@@ -24,7 +24,6 @@ from app.core.config import settings
 from app.core.orchestrator import Orchestrator
 from app.data.preprocessor import preprocess_client_data
 from app.data.partitioner import discover_clients, select_clients
-from app.ml.dp_engine import PrivacyAccountant
 from agents.local_trainer import LocalTrainer
 
 logging.basicConfig(
@@ -125,6 +124,7 @@ def run_federated_simulation(
     }
 
     job = orchestrator.create_job(job_id=1, config=config)
+    dp_epsilon_per_round = float(job.config.get("dp_epsilon_per_round", 0.0) or 0.0)
 
     for cid, trainer in trainers.items():
         orchestrator.connect_client(
@@ -133,10 +133,7 @@ def run_federated_simulation(
         )
 
     history = []
-    privacy_accountant = PrivacyAccountant(
-        epsilon_budget=dp_epsilon * num_rounds if use_dp else float("inf"),
-        delta=dp_delta,
-    )
+    stopped_reason: str | None = None
 
     for round_num in range(1, num_rounds + 1):
         round_start = time.time()
@@ -155,7 +152,6 @@ def run_federated_simulation(
         round_precisions = []
         round_recalls = []
         round_thresholds = []
-        round_dp_epsilons: list[float] = []
         comm_bytes_down = _model_size_bytes(global_state_dict) * len(trainers)
         comm_bytes_up = 0
 
@@ -166,7 +162,7 @@ def run_federated_simulation(
                 lr=lr,
                 batch_size=batch_size,
                 fedprox_mu=fedprox_mu,
-                dp_epsilon=dp_epsilon,
+                dp_epsilon=dp_epsilon_per_round if use_dp else 0.0,
                 dp_delta=dp_delta,
                 dp_max_grad_norm=dp_max_grad_norm,
                 use_dp=use_dp,
@@ -203,12 +199,13 @@ def run_federated_simulation(
             round_precisions.append(metrics.get("precision", 0))
             round_recalls.append(metrics.get("recall", 0))
             round_thresholds.append(metrics.get("optimal_threshold", 0.5))
-            round_dp_epsilons.append(float(metrics.get("dp_epsilon_spent", 0.0)))
 
         round_time = (time.time() - round_start) * 1000
 
-        if use_dp and dp_epsilon > 0 and round_dp_epsilons:
-            privacy_accountant.record_round(float(np.mean(round_dp_epsilons)))
+        job_after = orchestrator.get_job_state(1)
+        cumulative_epsilon = 0.0
+        if job_after and job_after.privacy_accountant is not None:
+            cumulative_epsilon = job_after.privacy_accountant.total_epsilon_spent
 
         avg_loss = np.mean(round_losses)
         avg_acc = np.mean(round_accs)
@@ -231,7 +228,7 @@ def run_federated_simulation(
             "num_clients": len(trainers),
             "comm_bytes_down": comm_bytes_down,
             "comm_bytes_up": comm_bytes_up,
-            "cumulative_epsilon": privacy_accountant.total_epsilon_spent,
+            "cumulative_epsilon": cumulative_epsilon,
         }
         history.append(round_info)
 
@@ -241,15 +238,43 @@ def run_federated_simulation(
             avg_precision, avg_recall, avg_threshold,
         )
 
+        if (
+            use_dp
+            and job_after
+            and job_after.privacy_accountant is not None
+            and job_after.privacy_accountant.budget_exhausted
+        ):
+            stopped_reason = "privacy_budget_exhausted"
+            logger.info(
+                "Privacy budget exhausted after round %d (%.4f / %.4f ε)",
+                round_num,
+                job_after.privacy_accountant.total_epsilon_spent,
+                job_after.privacy_accountant.epsilon_budget,
+            )
+            break
+
     out_path = Path(output_dir)
     out_path.mkdir(parents=True, exist_ok=True)
 
     total_comm_bytes = sum(r["comm_bytes_down"] + r["comm_bytes_up"] for r in history)
 
+    job_final = orchestrator.get_job_state(1)
+    privacy_summary = (
+        job_final.privacy_accountant.summary()
+        if job_final and job_final.privacy_accountant is not None
+        else None
+    )
+
     results = {
-        "config": config,
+        "config": {
+            **config,
+            "dp_epsilon_total": dp_epsilon if use_dp else 0.0,
+            "dp_epsilon_per_round": dp_epsilon_per_round if use_dp else 0.0,
+        },
         "num_clients": len(trainers),
         "selected_clients": selected,
+        "rounds_completed": len(history),
+        "stopped_reason": stopped_reason,
         "history": history,
         "final_loss": history[-1]["avg_loss"] if history else None,
         "final_accuracy": history[-1]["avg_accuracy"] if history else None,
@@ -260,8 +285,10 @@ def run_federated_simulation(
         "optimal_threshold": history[-1]["optimal_threshold"] if history else None,
         "total_comm_bytes": total_comm_bytes,
         "total_comm_mb": round(total_comm_bytes / (1024 * 1024), 2),
-        "privacy_accountant": privacy_accountant.summary(),
-        "total_epsilon_spent": privacy_accountant.total_epsilon_spent,
+        "privacy_accountant": privacy_summary,
+        "total_epsilon_spent": (
+            privacy_summary["total_epsilon_spent"] if privacy_summary else 0.0
+        ),
     }
 
     dp_tag = "nodp" if not use_dp else f"dp_eps{dp_epsilon}"

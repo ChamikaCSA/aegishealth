@@ -286,7 +286,7 @@ export function AgentControl() {
                 id="data-dir"
                 value={dataDir}
                 onChange={(e) => !isAgentBusy && setDataDir(e.target.value)}
-                placeholder="Select folder containing patients.csv, vitals.csv, and events.csv"
+                placeholder="Select folder containing patients.csv, vitals.csv, and treatment.csv"
                 readOnly={!hasElectronAPI || isAgentBusy}
               />
               <Button
