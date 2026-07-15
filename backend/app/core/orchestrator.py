@@ -55,6 +55,22 @@ class JobState:
     aggregator: FedProxAggregator | None = None
     current_round_state: RoundState | None = None
     privacy_accountant: PrivacyAccountant | None = None
+    best_global_state: dict[str, torch.Tensor] | None = None
+    best_checkpoint_round: int = 0
+    best_checkpoint_score: float = -1.0
+    best_accuracy: float = -1.0
+    best_f1_score: float = -1.0
+    best_auc_roc: float = -1.0
+
+
+def checkpoint_score(auc: float, f1: float, accuracy: float) -> float:
+    """Score used to select the exported global model.
+
+    Geometric mean of AUC and F1 prefers rounds that rank well *and* have a
+    usable decision threshold. A small accuracy term breaks ties and
+    down-weights class-collapse rounds (high AUC, collapsed hard labels).
+    """
+    return (max(auc, 0.0) * max(f1, 0.0)) ** 0.5 + 0.05 * max(accuracy, 0.0)
 
 
 class Orchestrator:
@@ -335,6 +351,34 @@ class Orchestrator:
                 else False
             ),
         }
+
+        score = checkpoint_score(avg_auc, avg_f1, avg_acc)
+        round_metrics["checkpoint_score"] = score
+
+        if score > job.best_checkpoint_score:
+            job.best_global_state = {
+                k: v.detach().cpu().clone() for k, v in new_global.items()
+            }
+            job.best_checkpoint_round = rs.round_number
+            job.best_checkpoint_score = score
+            job.best_accuracy = avg_acc
+            job.best_f1_score = avg_f1
+            job.best_auc_roc = avg_auc
+            round_metrics["checkpoint_updated"] = True
+            logger.info(
+                "New best checkpoint for job %d at round %d "
+                "(score=%.4f auc=%.4f f1=%.4f acc=%.4f)",
+                job.job_id, rs.round_number, score, avg_auc, avg_f1, avg_acc,
+            )
+        else:
+            round_metrics["checkpoint_updated"] = False
+
+        round_metrics["best_checkpoint_round"] = job.best_checkpoint_round
+        round_metrics["best_checkpoint_score"] = job.best_checkpoint_score
+        round_metrics["best_auc_roc"] = job.best_auc_roc
+        round_metrics["best_f1"] = job.best_f1_score
+        round_metrics["best_accuracy"] = job.best_accuracy
+
         job.round_metrics.append(round_metrics)
 
         logger.info(

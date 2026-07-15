@@ -18,16 +18,17 @@ class Settings(BaseSettings):
     raw_client_data_dir: str = str(Path(__file__).resolve().parents[3] / "data" / "raw")
 
     # FL hyperparameters (defaults, overridden per training job)
-    default_num_rounds: int = 50
-    default_local_epochs: int = 5
+    default_num_rounds: int = 15
+    default_local_epochs: int = 3
     default_learning_rate: float = 0.001
     default_batch_size: int = 64
     default_fedprox_mu: float = 0.01
     default_dp_epsilon: float = 8.0
     default_dp_delta: float = 1e-5
     default_dp_max_grad_norm: float = 1.0
-    default_class_weight_multiplier: float = 1.0
+    default_class_weight_multiplier: float = 0.5
     default_threshold_beta: float = 1.0
+    max_pos_class_weight: float = 3.0
 
     # Quorum / straggler handling
     round_timeout_seconds: float = 300.0

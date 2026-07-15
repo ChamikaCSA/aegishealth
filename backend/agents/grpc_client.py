@@ -117,7 +117,7 @@ class OrchestratorClient:
             "dp_delta": response.config.dp_delta,
             "dp_max_grad_norm": response.config.dp_max_grad_norm,
             "batch_size": response.config.batch_size,
-            "class_weight_multiplier": response.config.class_weight_multiplier or 1.0,
+            "class_weight_multiplier": response.config.class_weight_multiplier or 0.5,
             "use_he": response.config.use_he,
         }
         return state_dict, response.round_number, config, response.he_context

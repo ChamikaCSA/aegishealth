@@ -104,7 +104,7 @@ export function JobDetail({
           <div>
             <CardTitle>Job #{job.id}</CardTitle>
             <CardDescription>
-              {job.current_round}/{job.total_rounds} rounds · Acc:{" "}
+              {job.current_round}/{job.total_rounds} rounds · Model Acc:{" "}
               {(job.best_accuracy * 100).toFixed(1)}% · F1:{" "}
               {(job.best_f1_score * 100).toFixed(1)}% · AUC:{" "}
               {(job.best_auc_roc * 100).toFixed(1)}% · {fleet.length} Connected Clients

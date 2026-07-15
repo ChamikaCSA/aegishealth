@@ -6,6 +6,7 @@ import logging
 
 import numpy as np
 import torch
+from sklearn.model_selection import StratifiedShuffleSplit
 
 from app.ml.lstm_model import LSTMAnomalyDetector, create_model
 from app.ml.trainer import (
@@ -18,6 +19,40 @@ from app.ml.trainer import (
 from app.data.loader import create_data_loaders
 
 logger = logging.getLogger(__name__)
+
+
+def _stratified_train_val_indices(
+    y: np.ndarray,
+    val_ratio: float,
+    seed: int = 42,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Split indices with class balance preserved when possible."""
+    labels = np.asarray(y).ravel()
+    n = len(labels)
+    indices = np.arange(n)
+
+    if n < 2 or val_ratio <= 0:
+        return indices, np.array([], dtype=int)
+
+    # StratifiedShuffleSplit needs ≥2 samples per class in the full set
+    unique, counts = np.unique(labels, return_counts=True)
+    if len(unique) < 2 or counts.min() < 2:
+        rng = np.random.default_rng(seed)
+        rng.shuffle(indices)
+        val_size = max(1, int(n * val_ratio)) if n > 1 else 0
+        return indices[val_size:], indices[:val_size]
+
+    try:
+        splitter = StratifiedShuffleSplit(
+            n_splits=1, test_size=val_ratio, random_state=seed,
+        )
+        train_idx, val_idx = next(splitter.split(indices, labels))
+        return train_idx, val_idx
+    except ValueError:
+        rng = np.random.default_rng(seed)
+        rng.shuffle(indices)
+        val_size = max(1, int(n * val_ratio))
+        return indices[val_size:], indices[:val_size]
 
 
 class LocalTrainer:
@@ -41,13 +76,7 @@ class LocalTrainer:
         self.dropout = dropout
         self.device = get_device()
 
-        rng = np.random.default_rng(42)
-        indices = np.arange(len(client_X))
-        rng.shuffle(indices)
-
-        val_size = int(len(indices) * val_ratio)
-        val_idx = indices[:val_size]
-        train_idx = indices[val_size:]
+        train_idx, val_idx = _stratified_train_val_indices(client_y, val_ratio)
 
         self.X_train = client_X[train_idx]
         self.y_train = client_y[train_idx]
@@ -56,9 +85,15 @@ class LocalTrainer:
 
         self.model = create_model(input_size, hidden_size, num_layers, dropout)
         self.cumulative_epsilon = 0.0
+        train_pos = int(np.sum(np.asarray(self.y_train).ravel() == 1))
+        val_pos = int(np.sum(np.asarray(self.y_val).ravel() == 1))
         logger.info(
-            "LocalTrainer initialized for client %d (%d train, %d val samples)",
-            client_id, len(self.X_train), len(self.X_val),
+            "LocalTrainer initialized for client %d (%d train / %d val, pos=%d/%d)",
+            client_id,
+            len(self.X_train),
+            len(self.X_val),
+            train_pos,
+            val_pos,
         )
 
     @property
@@ -71,7 +106,7 @@ class LocalTrainer:
     def train_round(
         self,
         global_state: dict[str, torch.Tensor],
-        epochs: int = 5,
+        epochs: int = 3,
         lr: float = 0.001,
         batch_size: int = 64,
         fedprox_mu: float = 0.01,
@@ -79,7 +114,7 @@ class LocalTrainer:
         dp_delta: float = 1e-5,
         dp_max_grad_norm: float = 1.0,
         use_dp: bool = True,
-        class_weight_multiplier: float = 1.0,
+        class_weight_multiplier: float = 0.5,
         threshold_beta: float = 1.0,
     ) -> tuple[dict[str, torch.Tensor], dict]:
         """

@@ -35,8 +35,8 @@ logger = logging.getLogger("simulation")
 
 def run_federated_simulation(
     num_clients: int = 10,
-    num_rounds: int = 50,
-    local_epochs: int = 5,
+    num_rounds: int = 15,
+    local_epochs: int = 3,
     lr: float = 0.001,
     batch_size: int = 64,
     fedprox_mu: float = 0.01,
@@ -47,7 +47,7 @@ def run_federated_simulation(
     client_strategy: str = "largest",
     data_dir: str | None = None,
     output_dir: str = "results",
-    class_weight_multiplier: float = 1.0,
+    class_weight_multiplier: float = 0.5,
     threshold_beta: float = 1.0,
     client_ids: list[int] | None = None,
 ) -> dict:
@@ -303,8 +303,8 @@ def run_federated_simulation(
 def main():
     parser = argparse.ArgumentParser(description="AegisHealth FL Simulation")
     parser.add_argument("--num-clients", type=int, default=10)
-    parser.add_argument("--rounds", type=int, default=50)
-    parser.add_argument("--local-epochs", type=int, default=5)
+    parser.add_argument("--rounds", type=int, default=15)
+    parser.add_argument("--local-epochs", type=int, default=3)
     parser.add_argument("--lr", type=float, default=0.001)
     parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--fedprox-mu", type=float, default=0.01)
@@ -319,7 +319,7 @@ def main():
         help="Comma-separated client IDs to include only (avoids preprocessing all hospitals)",
     )
     parser.add_argument("--output-dir", default="results")
-    parser.add_argument("--class-weight-multiplier", type=float, default=1.0,
+    parser.add_argument("--class-weight-multiplier", type=float, default=0.5,
                         help=">1.0 boosts recall; <1.0 reduces false positives")
     parser.add_argument("--threshold-beta", type=float, default=1.0,
                         help="F-beta parameter for optimal threshold search (>1 favors recall)")

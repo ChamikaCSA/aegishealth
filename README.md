@@ -97,7 +97,7 @@ In `.env`, set `ELECTRON_APP_URL` if the client UI is not at the default `http:/
 
 1. **Server user**: Create in Supabase Dashboard (Auth > Users > Add User). The `handle_new_user` trigger creates a profile with role `server` by default. Set `full_name` in Table Editor → `profiles` if desired.
 
-2. **Client users**: Log in as the server user, open the dashboard → Management tab → Register Client. This creates both the client (participating site) and its auth user in one step. No manual profile editing needed.
+2. **Client users**: Log in as the server user, open the dashboard → Management tab → Register Client. This creates both the client (participating site) and its auth user in one step.
 
 ### Data Setup
 
@@ -123,7 +123,7 @@ Runs the full FL loop in one process. Does not use the dashboard or edge agents.
 ```bash
 cd backend
 source venv/bin/activate
-python -m scripts.run_simulation --num-clients 10 --rounds 50
+python -m scripts.run_simulation --num-clients 10 --rounds 15
 ```
 
 ### Option B: Dashboard with edge agents

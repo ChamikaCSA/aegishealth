@@ -75,12 +75,12 @@ def _export_train_state_dict(model: nn.Module) -> dict:
 def train_local(
     model: LSTMAnomalyDetector,
     train_loader: DataLoader,
-    epochs: int = 5,
+    epochs: int = 3,
     lr: float = 0.001,
     fedprox_mu: float = 0.0,
     global_params: torch.Tensor | None = None,
     device: torch.device | None = None,
-    class_weight_multiplier: float = 1.0,
+    class_weight_multiplier: float = 0.5,
     use_dp: bool = False,
     dp_epsilon: float = 8.0,
     dp_delta: float = 1e-5,
@@ -95,6 +95,7 @@ def train_local(
 
     class_weight_multiplier scales the inverse-frequency positive-class weight:
     >1.0 biases toward higher recall, <1.0 toward fewer false positives.
+    The resulting weight is capped by settings.max_pos_class_weight.
     """
     device = device or get_device()
     model = model.to(device)
@@ -107,7 +108,10 @@ def train_local(
         total_count += len(labels)
 
     if pos_count > 0 and total_count > pos_count:
+        from app.core.config import settings
+
         pos_weight = (total_count - pos_count) / pos_count * class_weight_multiplier
+        pos_weight = min(pos_weight, settings.max_pos_class_weight)
         weight = torch.FloatTensor([1.0, pos_weight]).to(device)
     else:
         weight = None

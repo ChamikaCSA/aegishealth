@@ -19,12 +19,12 @@ import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 
 export const defaultConfig = {
-  num_rounds: 50,
-  local_epochs: 5,
+  num_rounds: 15,
+  local_epochs: 3,
   learning_rate: 0.001,
   batch_size: 64,
   fedprox_mu: 0.01,
-  class_weight_multiplier: 1.0,
+  class_weight_multiplier: 0.5,
   dp_epsilon: 8.0,
   dp_delta: 1e-5,
   dp_max_grad_norm: 1.0,

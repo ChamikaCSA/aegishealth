@@ -66,7 +66,17 @@ def _register_persistence() -> None:
                     sync_fleet()
                 else:
                     pt_path, onnx_path = export_and_upload_final_model(job_id)
-                    log_event_sync(AuditEventType.JOB_COMPLETED, job_id=job_id)
+                    log_event_sync(
+                        AuditEventType.JOB_COMPLETED,
+                        job_id=job_id,
+                        details={
+                            "best_checkpoint_round": job.best_checkpoint_round,
+                            "best_auc_roc": max(job.best_auc_roc, 0.0),
+                            "best_f1_score": max(job.best_f1_score, 0.0),
+                            "best_accuracy": max(job.best_accuracy, 0.0),
+                            "export_source": "best" if job.best_global_state is not None else "final",
+                        },
+                    )
                     orchestrator.set_all_clients_idle()
                     orchestrator.finish_job(job_id)
                     sync_fleet()
@@ -77,6 +87,9 @@ def _register_persistence() -> None:
                         completed_at=completed_at,
                         model_path_pt=pt_path,
                         model_path_onnx=onnx_path,
+                        best_accuracy=max(job.best_accuracy, 0.0),
+                        best_f1_score=max(job.best_f1_score, 0.0),
+                        best_auc_roc=max(job.best_auc_roc, 0.0),
                     )
                 return
 
@@ -118,9 +131,9 @@ def _register_persistence() -> None:
                             details={"dp_epsilon_spent": m.get("dp_epsilon_spent")},
                         )
 
-            best_acc = round_metrics.get("global_accuracy", 0)
-            best_f1 = round_metrics.get("global_f1", 0)
-            best_auc = round_metrics.get("global_auc_roc", 0)
+            best_acc = max(job.best_accuracy, 0.0)
+            best_f1 = max(job.best_f1_score, 0.0)
+            best_auc = max(job.best_auc_roc, 0.0)
             JobRepository.update_job_status(
                 job_id,
                 "running",
@@ -146,10 +159,22 @@ def _register_persistence() -> None:
                             "participating_clients"
                         ),
                         "privacy_budget_exhausted": True,
+                        "best_checkpoint_round": job.best_checkpoint_round,
+                        "export_source": "best",
                     },
                 )
                 pt_path, onnx_path = export_and_upload_final_model(job_id)
-                log_event_sync(AuditEventType.JOB_COMPLETED, job_id=job_id)
+                log_event_sync(
+                    AuditEventType.JOB_COMPLETED,
+                    job_id=job_id,
+                    details={
+                        "best_checkpoint_round": job.best_checkpoint_round,
+                        "best_auc_roc": max(job.best_auc_roc, 0.0),
+                        "best_f1_score": max(job.best_f1_score, 0.0),
+                        "best_accuracy": max(job.best_accuracy, 0.0),
+                        "export_source": "best" if job.best_global_state is not None else "final",
+                    },
+                )
                 orchestrator.set_all_clients_idle()
                 orchestrator.finish_job(job_id)
                 sync_fleet()
@@ -160,6 +185,9 @@ def _register_persistence() -> None:
                     completed_at=completed_at,
                     model_path_pt=pt_path,
                     model_path_onnx=onnx_path,
+                    best_accuracy=max(job.best_accuracy, 0.0),
+                    best_f1_score=max(job.best_f1_score, 0.0),
+                    best_auc_roc=max(job.best_auc_roc, 0.0),
                 )
                 return
 
@@ -170,6 +198,8 @@ def _register_persistence() -> None:
                     details={
                         "round": round_metrics.get("round"),
                         "participating_clients": round_metrics.get("participating_clients"),
+                        "checkpoint_updated": round_metrics.get("checkpoint_updated"),
+                        "best_checkpoint_round": job.best_checkpoint_round,
                     },
                 )
                 orchestrator.start_round(job_id)
@@ -188,7 +218,17 @@ def _register_persistence() -> None:
                 sync_fleet()
             else:
                 pt_path, onnx_path = export_and_upload_final_model(job_id)
-                log_event_sync(AuditEventType.JOB_COMPLETED, job_id=job_id)
+                log_event_sync(
+                    AuditEventType.JOB_COMPLETED,
+                    job_id=job_id,
+                    details={
+                        "best_checkpoint_round": job.best_checkpoint_round,
+                        "best_auc_roc": max(job.best_auc_roc, 0.0),
+                        "best_f1_score": max(job.best_f1_score, 0.0),
+                        "best_accuracy": max(job.best_accuracy, 0.0),
+                        "export_source": "best" if job.best_global_state is not None else "final",
+                    },
+                )
                 orchestrator.set_all_clients_idle()
                 orchestrator.finish_job(job_id)
                 sync_fleet()
@@ -199,6 +239,9 @@ def _register_persistence() -> None:
                     completed_at=completed_at,
                     model_path_pt=pt_path,
                     model_path_onnx=onnx_path,
+                    best_accuracy=max(job.best_accuracy, 0.0),
+                    best_f1_score=max(job.best_f1_score, 0.0),
+                    best_auc_roc=max(job.best_auc_roc, 0.0),
                 )
         except Exception as e:
             logger.exception("Persistence callback failed for job %d: %s", job_id, e)

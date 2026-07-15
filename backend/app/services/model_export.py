@@ -54,25 +54,46 @@ def _build_model_from_state(
   return model, seq_len, input_size
 
 
-def _get_final_state(job_id: int) -> Tuple[dict[str, torch.Tensor], dict[str, Any]] | None:
-  """Fetch final global state and config for a completed job."""
+def _get_export_state(job_id: int) -> Tuple[dict[str, torch.Tensor], dict[str, Any]] | None:
+  """Fetch best (or final) global state and config for a completed job."""
   orchestrator = get_orchestrator()
   job = orchestrator.get_job_state(job_id)
   if job is None or job.aggregator is None:
     logger.warning("No job state or aggregator found for job_id=%d", job_id)
     return None
-  state = job.aggregator.get_global_state()
-  config = job.config or {}
+
+  if job.best_global_state is not None:
+    state = {k: v.clone() for k, v in job.best_global_state.items()}
+    config = {
+      **(job.config or {}),
+      "export_checkpoint_round": job.best_checkpoint_round,
+      "export_source": "best",
+    }
+    logger.info(
+      "Exporting best checkpoint for job %d from round %d "
+      "(auc=%.4f f1=%.4f acc=%.4f score=%.4f)",
+      job_id,
+      job.best_checkpoint_round,
+      job.best_auc_roc,
+      job.best_f1_score,
+      job.best_accuracy,
+      job.best_checkpoint_score,
+    )
+  else:
+    state = job.aggregator.get_global_state()
+    config = {**(job.config or {}), "export_source": "final"}
+    logger.info("Exporting final-round weights for job %d (no best checkpoint)", job_id)
+
   return state, config
 
 
 def export_and_upload_final_model(job_id: int) -> Tuple[str | None, str | None]:
-  """Export final model for a job to PT and ONNX and upload to Supabase.
+  """Export best checkpoint (fallback: final) model to PT/ONNX and upload to Supabase.
 
   Returns (pt_path, onnx_path) in the models bucket, or (None, None) on failure.
   """
   try:
-    result = _get_final_state(job_id)
+    result = _get_export_state(job_id)
     if result is None:
       return None, None
     state_dict, config = result

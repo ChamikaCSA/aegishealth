@@ -10,6 +10,7 @@ import torch
 import grpc
 
 from app.db.models import AuditEventType
+from app.core.config import settings
 from app.grpc import federated_pb2, federated_pb2_grpc
 
 logger = logging.getLogger(__name__)
@@ -76,14 +77,16 @@ class FederatedLearningServicer(federated_pb2_grpc.FederatedLearningServicer):
             round_number=round_num,
             model_weights=model_bytes,
             config=federated_pb2.TrainingConfig(
-                local_epochs=config.get("local_epochs", 5),
-                learning_rate=config.get("learning_rate", 0.001),
-                fedprox_mu=config.get("fedprox_mu", 0.01),
+                local_epochs=config.get("local_epochs", settings.default_local_epochs),
+                learning_rate=config.get("learning_rate", settings.default_learning_rate),
+                fedprox_mu=config.get("fedprox_mu", settings.default_fedprox_mu),
                 dp_epsilon=dp_epsilon_per_round,
-                dp_delta=config.get("dp_delta", 1e-5),
-                dp_max_grad_norm=config.get("dp_max_grad_norm", 1.0),
-                batch_size=config.get("batch_size", 64),
-                class_weight_multiplier=config.get("class_weight_multiplier", 1.0),
+                dp_delta=config.get("dp_delta", settings.default_dp_delta),
+                dp_max_grad_norm=config.get("dp_max_grad_norm", settings.default_dp_max_grad_norm),
+                batch_size=config.get("batch_size", settings.default_batch_size),
+                class_weight_multiplier=config.get(
+                    "class_weight_multiplier", settings.default_class_weight_multiplier
+                ),
                 use_he=config.get("use_he", False),
             ),
             he_context=he_ctx_bytes,

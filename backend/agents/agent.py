@@ -104,7 +104,7 @@ class EdgeAgent:
             dp_epsilon=config["dp_epsilon"],
             dp_delta=config["dp_delta"],
             dp_max_grad_norm=config["dp_max_grad_norm"],
-            class_weight_multiplier=config.get("class_weight_multiplier", 1.0),
+            class_weight_multiplier=config.get("class_weight_multiplier", 0.5),
         )
 
         update = local_state
